@@ -1,11 +1,5 @@
 #include "UdsSubpassLast.h"
 
-// TODO - Remove me?
-void FUdsSubpassLast::ParseEnvironment(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FInputs& PassInputs)
-{
-	// check(false);
-}
-
 void FUdsSubpassLast::CreateResources(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FInputs& PassInputs)
 {
 	Data->CurrentInputTexture = PassInputs.SceneColor.Texture;

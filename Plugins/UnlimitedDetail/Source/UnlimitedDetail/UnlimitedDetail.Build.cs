@@ -52,6 +52,8 @@ public class UnlimitedDetail : ModuleRules
 				new string[] {
 					//required for FPostProcessMaterialInputs
 					EngineDirectory + "/Source/Runtime/Renderer/Private",
+					//required for OverridePassSequence.h (moved in UE5.5+)
+					EngineDirectory + "/Source/Runtime/Renderer/Internal",
 					"UnlimitedDetail/Public",
 			}
 		);

@@ -65,8 +65,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "UnlimitedDetail")
 	bool HasSession() const { return (pContext != nullptr); };
 
-	FTexture2DRHIRef GetColorTexture()const { return ColorTexture; };
-	FTexture2DRHIRef GetDepthTexture()const { return DepthTexture; };
+	FTextureRHIRef GetColorTexture()const { return ColorTexture; };
+	FTextureRHIRef GetDepthTexture()const { return DepthTexture; };
 
 	bool IsValid() const { return HasSession() && GetColorTexture().IsValid() && GetDepthTexture().IsValid(); };
 
@@ -84,8 +84,8 @@ private:
 	FString ServerUrl;
 	FString APIKey;
 
-	FTexture2DRHIRef ColorTexture;
-	FTexture2DRHIRef DepthTexture;
+	FTextureRHIRef ColorTexture;
+	FTextureRHIRef DepthTexture;
 
 	struct udContext* pContext = NULL;
 	struct udContextPartial* pContextPartial = NULL; // New 5.1 context partial for web based logins

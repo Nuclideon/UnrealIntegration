@@ -23,12 +23,13 @@ public:
 
 	virtual ~FPointCloudSceneProxy()
 	{
-		//TODO: Cleanup here
 		if (instance != -1)
 		{
-			UUDSubsystem *MySubsystem = GEngine->GetEngineSubsystem<UUDSubsystem>();
-			MySubsystem->RemoveInstance(instance);
-			instance = -1;
+			if (UUDSubsystem* MySubsystem = GEngine->GetEngineSubsystem<UUDSubsystem>())
+			{
+				MySubsystem->RemoveInstance(instance);
+				instance = -1;
+			}
 		}
 	}
 
@@ -58,40 +59,40 @@ public:
 		return Result;
 	}
 
-	virtual bool OnLevelAddedToWorld_RenderThread() override
+	// In UE5.5+ OnLevelAddedToWorld_RenderThread / OnLevelRemovedFromWorld_RenderThread
+	// are no longer virtual. The base implementations call SetForceHidden, which
+	// triggers this virtual hook instead.
+	virtual void OnForceHiddenChanged() override
 	{
-		check(instance == -1);
+		UUDSubsystem* MySubsystem = GEngine->GetEngineSubsystem<UUDSubsystem>();
+		if (!MySubsystem)
+			return;
 
-		UUDSubsystem *MySubsystem = GEngine->GetEngineSubsystem<UUDSubsystem>();
-		instance = MySubsystem->QueueInstance(myRoot->PointCloudHandle, GetLocalToWorld(), &GetScene());
-
-		SetForceHidden(false);
-		return false;
-	}
-
-	virtual void OnLevelRemovedFromWorld_RenderThread() override
-	{
-		check(instance != -1);
-
-		UUDSubsystem *MySubsystem = GEngine->GetEngineSubsystem<UUDSubsystem>();
-		MySubsystem->RemoveInstance(instance);
-		instance = -1;
-		SetForceHidden(true);
-	}
-
-	virtual void OnTransformChanged() override
-	{
-		UE_LOG(LogTemp, Display, TEXT("UnlimitedDetail | UDS Transform Updated"));
-		UUDSubsystem *MySubsystem = GEngine->GetEngineSubsystem<UUDSubsystem>();
-
-		if (instance == -1)
+		if (!IsForceHidden())
 		{
+			check(instance == -1);
 			instance = MySubsystem->QueueInstance(myRoot->PointCloudHandle, GetLocalToWorld(), &GetScene());
 		}
 		else
 		{
-			MySubsystem->UpdateInstance(instance, GetLocalToWorld());
+			if (instance != -1)
+			{
+				MySubsystem->RemoveInstance(instance);
+				instance = -1;
+			}
 		}
+	}
+
+	virtual void OnTransformChanged(FRHICommandListBase& RHICmdList) override
+	{
+		UUDSubsystem* MySubsystem = GEngine->GetEngineSubsystem<UUDSubsystem>();
+		if (!MySubsystem)
+			return;
+
+		if (instance == -1)
+			instance = MySubsystem->QueueInstance(myRoot->PointCloudHandle, GetLocalToWorld(), &GetScene());
+		else
+			MySubsystem->UpdateInstance(instance, GetLocalToWorld());
 	}
 
 	virtual uint32 GetMemoryFootprint(void) const override
@@ -158,7 +159,12 @@ void UUDComponent::UnloadPointCloud()
 		return;
 
 	UUDSubsystem* MySubsystem = GEngine->GetEngineSubsystem<UUDSubsystem>();
-	
+	if (!MySubsystem)
+	{
+		PointCloudHandle = nullptr;
+		return;
+	}
+
 	UE_LOG(LogTemp, Display, TEXT("UnlimitedDetail | Component %s | Unload PCI | %p | %s"), *GetName(), PointCloudHandle, *PointCloudHandle->URL);
 
 	MySubsystem->Remove(PointCloudHandle);

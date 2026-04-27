@@ -46,4 +46,4 @@ void FUdSDKEditorModule::ShutdownModule()
 
 #undef LOCTEXT_NAMESPACE
 	
-IMPLEMENT_MODULE(FUdSDKEditorModule, UdSDKEditor)
+IMPLEMENT_MODULE(FUdSDKEditorModule, UnlimitedDetailEditor)

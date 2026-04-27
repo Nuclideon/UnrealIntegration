@@ -187,7 +187,7 @@ FUDPointCloudHandle* UUDSubsystem::Load(FString URL)
 		if (AssetPtr)
 		{
 			++AssetPtr->RefCount;
-			UE_LOG(LogTemp, Display, TEXT("UnlimitedDetail | Fetched [In Cache: %d] | %s"), AssetPtr->RefCount, *AssetPtr->URL, AssetPtr->RefCount);
+			UE_LOG(LogTemp, Display, TEXT("UnlimitedDetail | Fetched [In Cache: %d] | %s"), AssetPtr->RefCount, *AssetPtr->URL);
 			return AssetPtr;
 		}
 	}
@@ -276,7 +276,7 @@ void UUDSubsystem::Remove(FUDPointCloudHandle* PCI)
 	}
 	else
 	{
-		// No idea how it got here
+		UE_LOG(LogTemp, Warning, TEXT("UnlimitedDetail | Remove: handle %p does not match cached entry for URL '%s'"), PCI, *PCI->URL);
 	}
 }
 
@@ -293,7 +293,7 @@ int64_t UUDSubsystem::QueueInstance(FUDPointCloudHandle *PCI, const FMatrix &InM
 {
 	if (!PCI || !PCI->bIsLoaded || !PCI->PointCloud)
 	{
-		return false;
+		return -1;
 	}
 
 	FScopeLock ScopeLock(&DataMutex);
@@ -320,7 +320,7 @@ int64_t UUDSubsystem::QueueInstance(FUDPointCloudHandle *PCI, const FMatrix &InM
 
 bool UUDSubsystem::RemoveInstance(int64_t id)
 {
-	//TODO: Binary search this instead
+	FScopeLock ScopeLock(&DataMutex);
 	for (int i = 0; i < RenderInstanceHandles.Num(); ++i)
 	{
 		if (RenderInstanceHandles[i].id != id)
@@ -389,12 +389,10 @@ int UUDSubsystem::CaptureUDSImage(const FSceneView& View)
 		return udE_Failure;
 	}
 
-	// TODO - This needs to be handled better.
-	// Hardcap the render to some reasonable number - sometimes the width/height can come out at unreasonably large numbers which signifies that this frame shouldnt render
+	// Hardcap: excessively large dimensions usually mean this frame should not render
 	if (nWidth >= 8192 || nHeight >= 8192)
 	{
-		check(false);
-		UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | Error, width or height too big : %s"), GetError(error));
+		UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | Error, width (%d) or height (%d) exceeds 8192 limit"), nWidth, nHeight);
 		return udE_Failure;
 	}
 
@@ -419,11 +417,16 @@ int UUDSubsystem::CaptureUDSImage(const FSceneView& View)
 		}
 
 		error = udRenderTarget_SetMatrix(pRenderView, udRTM_Projection, ProjArray);
-		error = udRenderTarget_SetMatrix(pRenderView, udRTM_View, ViewArray);
-		
 		if (error != udE_Success)
 		{
-			UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udRenderTarget_SetMatrix error : %s"), GetError(error));
+			UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udRenderTarget_SetMatrix (Projection) error : %s"), GetError(error));
+			return error;
+		}
+
+		error = udRenderTarget_SetMatrix(pRenderView, udRTM_View, ViewArray);
+		if (error != udE_Success)
+		{
+			UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udRenderTarget_SetMatrix (View) error : %s"), GetError(error));
 			return error;
 		}
 
@@ -461,22 +464,46 @@ int UUDSubsystem::CaptureUDSImage(const FSceneView& View)
 	}
 
 
+	// Upload CPU buffers to the CPUWritable textures via lock/unlock.
+	// This writes directly into upload-heap memory — no GPU DMA copy is required.
+	// Row stride from RHILockTexture2D may exceed Width*bpp (D3D12 requires 256-byte
+	// row alignment), so we copy row-by-row when the strides differ.
 	ENQUEUE_RENDER_COMMAND(UpdateTextureData)(
-		[this](FRHICommandListImmediate& CommandList)
+		[this](FRHICommandListImmediate& RHICmdList)
 		{
 			FScopeLock ScopeLock(&DataMutex);
 
-			if (ColorTexture.IsValid() && ColorTexture->GetSizeX() == Width && ColorTexture->GetSizeY() == Height)
+			auto UploadToTexture = [](FRHITexture* Texture, const void* SrcData, uint32 SrcRowBytes, int32 InHeight)
 			{
-				auto Region = FUpdateTextureRegion2D(0, 0, 0, 0, Width, Height);
-				RHIUpdateTexture2D(ColorTexture.GetReference(), 0, Region, ColorBulkData.GetTypeSize() * Region.Width, (uint8*)ColorBulkData.GetData());
-			}
+				uint32 DestStride = 0;
+				void* Dest = RHILockTexture2D(Texture, 0, RLM_WriteOnly, DestStride, false);
+				if (!Dest)
+					return;
+
+				if (DestStride == SrcRowBytes)
+				{
+					FMemory::Memcpy(Dest, SrcData, (SIZE_T)SrcRowBytes * InHeight);
+				}
+				else
+				{
+					for (int32 Row = 0; Row < InHeight; ++Row)
+					{
+						FMemory::Memcpy(
+							static_cast<uint8*>(Dest)       + (SIZE_T)Row * DestStride,
+							static_cast<const uint8*>(SrcData) + (SIZE_T)Row * SrcRowBytes,
+							SrcRowBytes
+						);
+					}
+				}
+
+				RHIUnlockTexture2D(Texture, 0, false);
+			};
+
+			if (ColorTexture.IsValid() && ColorTexture->GetSizeX() == Width && ColorTexture->GetSizeY() == Height)
+				UploadToTexture(ColorTexture.GetReference(), ColorBulkData.GetData(), Width * ColorBulkData.GetTypeSize(), Height);
 
 			if (DepthTexture.IsValid() && DepthTexture->GetSizeX() == Width && DepthTexture->GetSizeY() == Height)
-			{
-				auto Region = FUpdateTextureRegion2D(0, 0, 0, 0, Width, Height); // check this maybe?
-				RHIUpdateTexture2D(DepthTexture.GetReference(), 0, Region, DepthBulkData.GetTypeSize() * Region.Width, (uint8*)DepthBulkData.GetData());
-			}
+				UploadToTexture(DepthTexture.GetReference(), DepthBulkData.GetData(), Width * DepthBulkData.GetTypeSize(), Height);
 		}
 	);
 	return error;
@@ -515,46 +542,23 @@ int UUDSubsystem::RecreateUDView(int32 InWidth, int32 InHeight, float InFOV)
 
 	{
 		FScopeLock ScopeLock(&DataMutex);
-		ETextureCreateFlags TexCreateFlags = TexCreate_Dynamic; // Flags for .SetFlags()
+
+		// TexCreate_CPUWritable places the texture in upload-heap memory (D3D12) so
+		// the GPU can read it directly after a CPU lock+write, with no GPU DMA copy.
+		const ETextureCreateFlags TexCreateFlags = TexCreate_Dynamic | TexCreate_CPUWritable;
+
+		ColorBulkData.ResizeArray(Width * Height);
 		{
-
-		
-			ColorBulkData.ResizeArray(Width * Height);
-			const FString DebugName = "RecreateUDView ColorTexture";
-			
-			//RHICreateTexture2D - DEPRECATED in 5.1, use RHICreateTexture(FRHITextureCreateDesc) instead
-			// ColorTexture = RHICreateTexture2D(Width, Height, EPixelFormat::PF_B8G8R8A8, 1, 1, TexCreateFlags, CreateInfo); // 4.27 Line
-
-			// FRHIResourceCreateInfo CreateInfo;
-			//FRHIResourceCreateInfo
-
-			// New 5.1 texture descriptor
-			FRHITextureCreateDesc ColorTextureDescriptor = FRHITextureCreateDesc::Create2D(*DebugName, Width, Height, EPixelFormat::PF_B8G8R8A8);
-
-			&ColorTextureDescriptor.SetFlags(TexCreateFlags);
-			&ColorTextureDescriptor.SetNumMips(1);
-			&ColorTextureDescriptor.SetNumSamples(1);
-
-			ColorTexture = RHICreateTexture(ColorTextureDescriptor);
+			FRHITextureCreateDesc Desc = FRHITextureCreateDesc::Create2D(TEXT("UDColorTexture"), Width, Height, EPixelFormat::PF_B8G8R8A8);
+			Desc.SetFlags(TexCreateFlags).SetNumMips(1).SetNumSamples(1);
+			ColorTexture = RHICreateTexture(Desc);
 		}
 
+		DepthBulkData.ResizeArray(Width * Height);
 		{
-			// Size the array to match the possible screen size
-			// Screen size changes in editor all the time so this is required
-			DepthBulkData.ResizeArray(Width * Height);
-			
-			const FString DebugName = "RecreateUDView DepthTexture"; // 5.1 API might require a name to be passed in
-
-			
-
-			// New 5.1 descriptor
-			FRHITextureCreateDesc DepthTextureDescr = FRHITextureCreateDesc::Create2D(*DebugName, Width, Height, EPixelFormat::PF_R32_FLOAT);
-			
-			&DepthTextureDescr.SetNumMips(1);
-			&DepthTextureDescr.SetNumSamples(1);
-			&DepthTextureDescr.SetFlags(TexCreateFlags);
-			
-			DepthTexture = RHICreateTexture(DepthTextureDescr);
+			FRHITextureCreateDesc Desc = FRHITextureCreateDesc::Create2D(TEXT("UDDepthTexture"), Width, Height, EPixelFormat::PF_R32_FLOAT);
+			Desc.SetFlags(TexCreateFlags).SetNumMips(1).SetNumSamples(1);
+			DepthTexture = RHICreateTexture(Desc);
 		}
 	}
 
@@ -582,44 +586,3 @@ int UUDSubsystem::RecreateUDView(int32 InWidth, int32 InHeight, float InFOV)
 	return error;
 }
 
-static int udiv(int x, int y)
-{
-	return x / y + (x % y != 0);
-}
-
-//int UUDSubsystem::LoadThread(int id, int size, const TArray<TSharedPtr<FUdAsset>>& asserts)
-//{
-//	int length = asserts.Num();
-//	int step = udiv(length, size);
-//	int begin = step * id;
-//	int end = FMath::Min(begin + step, length);
-//
-//	enum udError error = udE_Failure;
-//	for (int j = begin; j < end; j++)
-//	{
-//		//if (is_release)
-//		//	return 1;
-//		Load(asserts[j]);
-//		
-//
-//
-//		Sleep(25);
-//	}
-//
-//	{
-//		//AtomicLock lock(&update_callback_lock);
-//		//if (!AutoDock::IsNull(DOCK_MAP))
-//		//{
-//		//	CWidget_Map * pMapWdg = AutoDock::GetWindow<CWidget_Map*>(DOCK_MAP);
-//		//	if (pMapWdg)
-//		//	{
-//		//		pMapWdg->AutoUpdateSegmentOne();
-//		//	}
-//		//}
-//
-//		//AtomicLock lock(&load_thread_lock);
-//		//if (load_thread_func)
-//		//	load_thread_func();
-//	}
-//	return 1;
-//}

@@ -17,8 +17,8 @@ struct FUdsData
 
 	FRDGTextureRef CurrentInputTexture;
 	FRDGTextureRef SceneDepthTexture;
-	FTexture2DRHIRef UdColorTexture;
-	FTexture2DRHIRef UdDepthTexture;
+	FTextureRHIRef UdColorTexture;
+	FTextureRHIRef UdDepthTexture;
 	FScreenPassTexture FinalOutput;
 
 	FVector2d ColorDepthExtentRatio; // Adding

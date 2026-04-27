@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
 #include "Modules/ModuleInterface.h"
-#include "AssetTools/Public/IAssetTools.h"
+#include "IAssetTools.h"
 
 class FToolBarBuilder;
 class FMenuBuilder;

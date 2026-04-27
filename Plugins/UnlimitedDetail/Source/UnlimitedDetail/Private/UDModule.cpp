@@ -13,7 +13,13 @@
 void FUDModule::StartupModule()
 {
 	UE_LOG(LogTemp, Display, TEXT("UnlimitedDetail | StartupModule()"));
-	FString PluginShaderDir = FPaths::Combine(IPluginManager::Get().FindPlugin(TEXT("UnlimitedDetail"))->GetBaseDir(), TEXT("Shaders"));
+	TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("UnlimitedDetail"));
+	if (!Plugin.IsValid())
+	{
+		UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | Failed to find plugin — shader directory not registered"));
+		return;
+	}
+	FString PluginShaderDir = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Shaders"));
 	AddShaderSourceDirectoryMapping(TEXT("/Plugins/UnlimitedDetail"), PluginShaderDir);
 }
 

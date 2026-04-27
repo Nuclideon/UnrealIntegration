@@ -10,7 +10,7 @@
 		Subpass->step(GraphBuilder, View, PassInputs); \
 	}
 
-DECLARE_GPU_STAT(UnlimitedDetailCompositeResolutionPass)
+DECLARE_GPU_STAT(UnlimitedDetailCompositeResolutionPass);
 
 FUDComposite::FUDComposite(EUdsMode InMode, TArray<TSharedPtr<FUdsData>> InViewData) : Mode(InMode) , ViewData(InViewData)
 {
@@ -53,6 +53,12 @@ FScreenPassTexture FUDComposite::AddPasses(FRDGBuilder& GraphBuilder, const FVie
 	
 	
 	TSharedPtr<FUdsData> Data = GetDataForView(View);
+	if (!Data.IsValid())
+	{
+		UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | AddPasses: no data found for view"));
+		return PassInputs.SceneColor;
+	}
+
 	for (FUdsSubpass* Subpass : FUdsubpasses)
 	{
 		Subpass->SetData(Data.Get());
