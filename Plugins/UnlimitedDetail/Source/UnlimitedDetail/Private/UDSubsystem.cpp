@@ -8,6 +8,7 @@
 #include "UDDefine.h"
 #include "udContext.h"
 #include "Misc/MessageDialog.h"
+#include "RenderingThread.h"
 
 uint32_t vcVoxelShader_Black(udPointCloud* /*pPointCloud*/, const udVoxelID* /*pVoxelID*/, const void* pUserData)
 {
@@ -47,6 +48,12 @@ UUDSubsystem::~UUDSubsystem()
 void UUDSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	UE_LOG(LogTemp, Display, TEXT("UnlimitedDetail | INIT SUBSYSTEM"));
+
+	// Register the view extension immediately and unconditionally so
+	// BeginRenderViewFamily is always called regardless of session state.
+	// The extension checks HasSession() internally before doing any work.
+	ViewExtension = FSceneViewExtensions::NewExtension<FUDSceneViewExtension>();
+
 	LoginFunction();
 }
 
@@ -54,6 +61,9 @@ void UUDSubsystem::Deinitialize()
 {
 	UE_LOG(LogTemp, Display, TEXT("UnlimitedDetail | DEINIT SUBSYSTEM"));
 	Exit();
+	// Release the extension only on full subsystem teardown, not on logout,
+	// so it stays registered through connect/disconnect cycles.
+	ViewExtension = nullptr;
 }
 
 // Does NOT init the udContext
@@ -63,8 +73,8 @@ int UUDSubsystem::Init()
 
 	if (const UUDSettings* Settings = GetDefault<UUDSettings>())
 	{
-		ServerUrl = Settings->ServerPath.ToString();
-		APIKey = Settings->APIKey.ToString();
+		ServerUrl = Settings->ServerPath;
+		APIKey = Settings->APIKey;
 		if (ServerUrl.IsEmpty() || APIKey.IsEmpty())
 			error = udE_Failure;
 	}
@@ -122,34 +132,26 @@ int UUDSubsystem::LoginFunction()
 	error = udContext_ConnectWithKey(&pContext, TCHAR_TO_UTF8(*ServerUrl), TCHAR_TO_UTF8(*ApplicationName), TCHAR_TO_UTF8(*ApplicationVersion), TCHAR_TO_UTF8(*APIKey));
 	if (error != udE_Success)
 	{
-		FString message = FString::Printf(TEXT("udContext_ConnectWithKey (Error: %s)"), GetError(error));
+		FString message = FString::Printf(TEXT("udContext_ConnectWithKey (Error: %s)"), *GetError(error));
 		FMessageDialog::Debugf(FText::FromString(message));
-		UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udContext_ConnectWithKey (Error: %s)"), GetError(error));
+		UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udContext_ConnectWithKey (Error: %s)"), *GetError(error));
 		return error;
 	}
 
 	error = udRenderContext_Create(pContext, &pRenderer);
 	if (error != udE_Success)
 	{
-		UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udRenderContext_Create (Error: %s)"), GetError(error));
+		UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udRenderContext_Create (Error: %s)"), *GetError(error));
 		return error;
 	}
 
-	if (!ViewExtension)
-	{
-		ViewExtension = FSceneViewExtensions::NewExtension<FUDSceneViewExtension>();
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UnlimitedDetail | The ViewExtension object already exists"));
-	}
-	
 	return error;
 }
 
 void UUDSubsystem::Exit()
 {
-	ViewExtension = nullptr;
+	// ViewExtension is intentionally NOT cleared here — it must survive logout/reconnect
+	// cycles and is only released in Deinitialize().
 
 	ServerUrl = ""; // udcloud.com
 	APIKey = "";
@@ -200,7 +202,7 @@ FUDPointCloudHandle* UUDSubsystem::Load(FString URL)
 	error = udPointCloud_Load(pContext, &Asset.PointCloud, TCHAR_TO_UTF8(*URL), &header);
 	if (error != udE_Success)
 	{
-		UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udPointCloud_Load error : %s %s"), GetError(error), *URL);
+		UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udPointCloud_Load error : %s %s"), *GetError(error), *URL);
 		return nullptr;
 	}
 
@@ -385,7 +387,7 @@ int UUDSubsystem::CaptureUDSImage(const FSceneView& View)
 	// Return early if we have really invalid values?
 	if (nWidth <= 0 || nHeight <= 0)
 	{
-		UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | Error, width or height = 0 : %s"), GetError(error));
+		UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | Error, width or height = 0 : %s"), *GetError(error));
 		return udE_Failure;
 	}
 
@@ -399,7 +401,7 @@ int UUDSubsystem::CaptureUDSImage(const FSceneView& View)
 	error = (udError)RecreateUDView(nWidth, nHeight, View.FOV);
 	if (error != udE_Success)
 	{
-		UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | RecreateUDView error : %s"), GetError(error));
+		UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | RecreateUDView error : %s"), *GetError(error));
 		return error;
 	}
 
@@ -412,21 +414,21 @@ int UUDSubsystem::CaptureUDSImage(const FSceneView& View)
 		error = udRenderTarget_SetTargets(pRenderView, ColorBulkData.GetData(), 0xFF000000, DepthBulkData.GetData());
 		if (error != udE_Success)
 		{
-			UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udRenderTarget_SetTargets error : %s"), GetError(error));
+			UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udRenderTarget_SetTargets error : %s"), *GetError(error));
 			return error;
 		}
 
 		error = udRenderTarget_SetMatrix(pRenderView, udRTM_Projection, ProjArray);
 		if (error != udE_Success)
 		{
-			UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udRenderTarget_SetMatrix (Projection) error : %s"), GetError(error));
+			UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udRenderTarget_SetMatrix (Projection) error : %s"), *GetError(error));
 			return error;
 		}
 
 		error = udRenderTarget_SetMatrix(pRenderView, udRTM_View, ViewArray);
 		if (error != udE_Success)
 		{
-			UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udRenderTarget_SetMatrix (View) error : %s"), GetError(error));
+			UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udRenderTarget_SetMatrix (View) error : %s"), *GetError(error));
 			return error;
 		}
 
@@ -452,7 +454,7 @@ int UUDSubsystem::CaptureUDSImage(const FSceneView& View)
 		error = udRenderContext_Render(pRenderer, pRenderView, RenderInstances.GetData(), RenderInstances.Num(), &renderOptions);
 		if (error != udE_Success)
 		{
-			UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udRenderContext_Render error : %s"), GetError(error));
+			UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udRenderContext_Render error : %s"), *GetError(error));
 			return error;
 		}
 
@@ -542,24 +544,34 @@ int UUDSubsystem::RecreateUDView(int32 InWidth, int32 InHeight, float InFOV)
 
 	{
 		FScopeLock ScopeLock(&DataMutex);
-
-		// TexCreate_CPUWritable places the texture in upload-heap memory (D3D12) so
-		// the GPU can read it directly after a CPU lock+write, with no GPU DMA copy.
-		const ETextureCreateFlags TexCreateFlags = TexCreate_Dynamic | TexCreate_CPUWritable;
-
 		ColorBulkData.ResizeArray(Width * Height);
-		{
-			FRHITextureCreateDesc Desc = FRHITextureCreateDesc::Create2D(TEXT("UDColorTexture"), Width, Height, EPixelFormat::PF_B8G8R8A8);
-			Desc.SetFlags(TexCreateFlags).SetNumMips(1).SetNumSamples(1);
-			ColorTexture = RHICreateTexture(Desc);
-		}
-
 		DepthBulkData.ResizeArray(Width * Height);
-		{
-			FRHITextureCreateDesc Desc = FRHITextureCreateDesc::Create2D(TEXT("UDDepthTexture"), Width, Height, EPixelFormat::PF_R32_FLOAT);
-			Desc.SetFlags(TexCreateFlags).SetNumMips(1).SetNumSamples(1);
-			DepthTexture = RHICreateTexture(Desc);
-		}
+	}
+
+	// RHICreateTexture must be called from the render thread. Resize is infrequent
+	// so flushing here to ensure the textures are ready before the first upload is fine.
+	ENQUEUE_RENDER_COMMAND(RecreateUDTextures)([this, NewWidth = Width, NewHeight = Height](FRHICommandListImmediate&)
+	{
+		// TexCreate_CPUWritable is D3D12-only (upload heap). On D3D11 it strips
+		// D3D11_BIND_SHADER_RESOURCE, preventing SRV creation and crashing at bind time.
+		// TexCreate_Dynamic is correct for both APIs: CPU-writable, GPU-readable, SRV-capable.
+		const ETextureCreateFlags TexCreateFlags = TexCreate_Dynamic;
+
+		FScopeLock ScopeLock(&DataMutex);
+
+		FRHITextureCreateDesc ColorDesc = FRHITextureCreateDesc::Create2D(TEXT("UDColorTexture"), NewWidth, NewHeight, EPixelFormat::PF_B8G8R8A8);
+		ColorDesc.SetFlags(TexCreateFlags).SetNumMips(1).SetNumSamples(1);
+		ColorTexture = RHICreateTexture(ColorDesc);
+
+		FRHITextureCreateDesc DepthDesc = FRHITextureCreateDesc::Create2D(TEXT("UDDepthTexture"), NewWidth, NewHeight, EPixelFormat::PF_R32_FLOAT);
+		DepthDesc.SetFlags(TexCreateFlags).SetNumMips(1).SetNumSamples(1);
+		DepthTexture = RHICreateTexture(DepthDesc);
+	});
+	// FlushRenderingCommands() must only be called from the game thread.
+	// BeginRenderViewFamily runs on the render thread in UE5.7, so guard accordingly.
+	if (IsInGameThread())
+	{
+		FlushRenderingCommands();
 	}
 
 	
@@ -569,7 +581,7 @@ int UUDSubsystem::RecreateUDView(int32 InWidth, int32 InHeight, float InFOV)
 		error = udRenderTarget_Destroy(&pRenderView);
 		if (error != udE_Success)
 		{
-			UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udRenderTarget_Destroy error : %s"), GetError(error));
+			UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udRenderTarget_Destroy error : %s"), *GetError(error));
 			return error;
 		}
 		pRenderView = nullptr;
@@ -580,7 +592,7 @@ int UUDSubsystem::RecreateUDView(int32 InWidth, int32 InHeight, float InFOV)
 	
 	if (error != udE_Success)
 	{
-		UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udRenderTarget_Create error : %s"), GetError(error));
+		UE_LOG(LogTemp, Error, TEXT("UnlimitedDetail | udRenderTarget_Create error : %s"), *GetError(error));
 	}
 
 	return error;

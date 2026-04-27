@@ -73,7 +73,8 @@ public class UnlimitedDetail : ModuleRules
 				"Projects",
 				"JsonUtilities",
 				"Json",
-				"HTTP"
+				"HTTP",
+				"DeveloperSettings"
 				// ... add other public dependencies that you statically link with here ...
 			}
 		);
@@ -108,7 +109,7 @@ public class UnlimitedDetail : ModuleRules
 		string IncludePath = Path.Combine(ThirdPartyPath, "include");
 		PublicIncludePaths.Add(IncludePath);
 
-		string LibPath = Path.Combine(ThirdPartyPath, "lib");
+		string LibPath = Path.Combine(ThirdPartyPath, "lib", "win_x64");
 
 		//PublicLibraryPaths.Add(LibPath);
 		PublicAdditionalLibraries.Add(Path.Combine(LibPath, "udSDK.lib"));

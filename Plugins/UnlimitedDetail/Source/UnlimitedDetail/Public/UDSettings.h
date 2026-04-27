@@ -1,22 +1,18 @@
-// Copyright (C) RenZhai.2020.All Rights Reserved.
-
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Engine/DeveloperSettings.h"
 #include "UDSettings.generated.h"
 
-UCLASS(config = ObjectStorageSettings)
-class UNLIMITEDDETAIL_API UUDSettings : public UObject
+UCLASS(config = UnlimitedDetail, defaultconfig)
+class UNLIMITEDDETAIL_API UUDSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 
 public:
 	UPROPERTY(config, EditAnywhere, Category = "UnlimitedDetail", meta = (ToolTip = ""))
-	FName ServerPath = FName("");
+	FString ServerPath;
 
 	UPROPERTY(config, EditAnywhere, Category = "UnlimitedDetail", meta = (ToolTip = ""))
-	FName APIKey = FName("");
-
-	virtual void SaveObjectStorageConfig();
-	virtual void LoadObjectStorageConfig();
+	FString APIKey;
 };
