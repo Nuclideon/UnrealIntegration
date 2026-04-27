@@ -22,4 +22,10 @@
 # define UDSDKDLL_API UDSDKDLL_IMPORT
 #endif // UDSDKDLL
 
+#if defined(EMSCRIPTEN)
+# define UDSDKDLL_DATA
+#else
+# define UDSDKDLL_DATA UDSDKDLL_API
+#endif
+
 #endif // udDLLExport_h__

@@ -14,6 +14,10 @@ extern "C" {
 #endif
   struct udConvertContext;
 
+  //!
+  //! @struct udCompareBPAOptions
+  //! Contains the options for the comparison algorithm
+  //! 
   struct udCompareBPAOptions
   {
     const char *pBaseModelPath;       //! The path to the UDS model that pComparisonModel will be compared against
@@ -27,7 +31,7 @@ extern "C" {
   //!
   //! @param pConvertContext The convert context to be used to compare the models.
   //! @param pOptions The parameters passed to the BPA algorithm
-  //! @result A udError value based on the result of setting up BPA on the input models.
+  //! @return A udError value based on the result of setting up BPA on the input models.
   //! @note This function does not start the conversion process, this allows the user to make additional changes to the convert job.
   //!
   UDSDKDLL_API enum udError udCompare_BPA(struct udConvertContext *pConvertContext, struct udCompareBPAOptions *pOptions);

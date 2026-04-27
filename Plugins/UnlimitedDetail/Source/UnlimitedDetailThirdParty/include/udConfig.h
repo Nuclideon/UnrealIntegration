@@ -55,7 +55,7 @@ UDSDKDLL_API enum udError udConfig_SetUserAgent(const char *pUserAgent);
 //! @param pLocation This is a null terminated string specifying a directory to save configurations files.
 //! @return A udError value based on the result of setting the configuration location.
 //! @note By default, udSDK will attempt to use some known platform locations, in some cases failing to save entirely.
-//! @note This location will have `/euclideon/udsdk` appending to the end.
+//! @note This location will have `/nuclideon/udsdk` appending to the end.
 //!
 UDSDKDLL_API enum udError udConfig_SetConfigLocation(const char *pLocation);
 

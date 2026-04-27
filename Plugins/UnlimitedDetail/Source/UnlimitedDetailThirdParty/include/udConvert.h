@@ -2,7 +2,7 @@
 #define udConvert_h__
 
 //! @file udConvert.h
-//! The **udConvertContext** object provides an interface to create a Euclideon Unlimited Detail model from a number of supported pointcloud formats.
+//! The **udConvertContext** object provides an interface to create a Nuclideon Unlimited Detail model from a number of supported pointcloud formats.
 //! Once instantiated, the **udConvertContext** object can be populated with input files and various conversion settings, before initiating the conversion process.
 
 #include <stddef.h>
@@ -49,6 +49,8 @@ extern "C" {
     double maxPointResolution; //!< The native resolution of the lowest resolution file
     uint32_t skipErrorsWherePossible; //!< If not 0 it will continue processing other files if a file is detected as corrupt or incorrect
 
+    uint32_t includeSourceFileID; //!< If not 0 this will embed source files to the udSourceFileID attribute channel of the output
+
     uint32_t everyNth; //!< If this value is >1, only every Nth point is included in the model. e.g. 4 means only every 4th point will be included, skipping 3/4 of the points
     uint32_t polygonVerticesOnly; //!< If not 0 it will skip rasterization of polygons in favour of just processing the vertices
     uint32_t retainPrimitives; //!< If not 0 rasterised primitives such as triangles/lines/etc are retained to be rendered at finer resolution if required at runtime
@@ -91,7 +93,7 @@ extern "C" {
   };
 
   //!
-  //! Create a udConvertContext to convert models to the Euclideon file format.
+  //! Create a udConvertContext to convert models to the Nuclideon file format.
   //!
   //! @param pContext The context to be used to create the convert context.
   //! @param ppConvertContext The pointer pointer of the udConvertContext. This will allocate an instance of `udConvertContext` into `ppConvertContext`.
@@ -225,6 +227,16 @@ extern "C" {
   //! @note Some importers may be able to skip to a later section in the file and continue conversion but this is up to the specific implementation of the importer.
   //!
   UDSDKDLL_API enum udError udConvert_SetSkipErrorsWherePossible(struct udConvertContext *pConvertContext, uint32_t ignoreParseErrorsWherePossible);
+
+  //!
+  //! This function sets the convert context to include a source file ID attribute channel, corresponding to a list of ID-filename pairs written to the metadata.
+  //! 
+  //! @param pConvertContext The convert context to use to set the include source file ID option.
+  //! @param includeSourceFileID A boolean value (0 is false) to indicate whether to include the source file ID.
+  //! @return A udError value based on the result of setting the include source file ID option.
+  //! @note The udSourceFileID has a maximum size of 65,536, therefore any conversion performed with more than this amount of source files will have indices that overflow back to 0. 
+  //! 
+  UDSDKDLL_API enum udError udConvert_SetIncludeSourceFileID(struct udConvertContext *pConvertContext, uint32_t includeSourceFileID);
 
   //!
   //! `EveryNth` lets the importers know to only include every *_n_*th point. If this is set to 0 or 1, every point will be included.
@@ -361,7 +373,7 @@ extern "C" {
   UDSDKDLL_API enum udError udConvert_Cancel(struct udConvertContext *pConvertContext);
 
   //!
-  //! This resets the statis for the provided convert context, for example to re-run a previously completed conversion.
+  //! This resets the status for the provided convert context, for example to re-run a previously completed conversion.
   //!
   //! @param pConvertContext The convert context on which to reset the status.
   //! @return A udError value based on the result of resetting the status.
@@ -392,7 +404,7 @@ extern "C" {
   //! Postprocessing to perform on points as they are read in
   //! 
   //! @param pContext The convert context 
-  //! @param callback takes the convertInput, a point buffer, a pointer to user data (which must point to memory that is valid for the duration of the convert process); returns udError
+  //! @param pCallback takes the convertInput, a point buffer, a pointer to user data (which must point to memory that is valid for the duration of the convert process); returns udError
   //! This can be used to modify the points and their attributes as well as modify the contents of the userData Structure
   //! @param pUserData a pointer to any data used by the callback
   //! @param pCleanUpUserData a function called with pUserData as the argument once the input has finished processing
@@ -403,6 +415,7 @@ extern "C" {
 
   //!
   //! Forces the produced UDS to include the specified attribute despite not being present in any input file. This is useful when these attributes are calculated using a postprocess callback
+  //! The forced attribute may still be excluded using udConvert_IgnoreAttribute. This allows an attribute added to the conversion using this function to be added/ removed using ignore/restore attribute
   //! 
   //! @param pContext The convert context 
   //! @param pAttribute descriptor of the attribute to be added. This is copied by the function
@@ -421,6 +434,28 @@ extern "C" {
   //! @return A udError value based on the result of removing the forced attribute
   //!
   UDSDKDLL_API enum udError udConvert_RemoveOutputAttribute(struct udConvertContext *pContext, uint32_t index);
+
+  //!
+  //! Sets the range mask size used during this conversion: higher values improve precision when performing attribute filtering on the resultant point cloud
+  //! 
+  //! @param pContext The convert context 
+  //! @param pAttributeName the name of the attribute to set the range mask size for 
+  //! @param attributeRangeMaskSize the number of bytes to use for containing the range mask (0, 1, 2, 4, 8)
+  //!
+  //! @return A udError value based on the result of setting the range mask size
+  //!
+  UDSDKDLL_API enum udError udConvert_SetAttributeRangeMaskSize(struct udConvertContext *pContext, const char *pAttributeName, uint8_t attributeRangeMaskSize);
+
+  //!
+  //! Gets the range mask size used for the attribute with the given name during this conversion
+  //! 
+  //! @param pContext The convert context 
+  //! @param pAttributeName the name of the attribute to get the range mask size for 
+  //! @param pAttributeRangeMaskSize the number of bytes to use for containing the range mask (0, 1, 2, 4, 8)
+  //!
+  //! @return A udError value based on the result of getting the range mask size
+  //!
+  UDSDKDLL_API enum udError udConvert_GetAttributeRangeMaskSize(struct udConvertContext *pContext, const char *pAttributeName, uint32_t *pAttributeRangeMaskSize);
 
 #ifdef __cplusplus
 }

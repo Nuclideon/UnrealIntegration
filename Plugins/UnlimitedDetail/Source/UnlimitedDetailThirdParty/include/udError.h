@@ -2,6 +2,7 @@
 #define udError_h__
 
 #include "udDLLExport.h"
+#include <stdint.h>
 
 //! @file udError.h
 //! These are the shared return codes from most udSDK functions
@@ -97,6 +98,7 @@ enum udError
   udE_RateLimited, //!< This functionality is currently being rate limited or has exhausted a shared resource. Trying again later may be successful
   udE_PremiumOnly, //!< The requested operation failed because the current session is not for a premium user
   udE_InProgress, //!< The requested operation is currently in progress
+  udE_DuplicateKey, //!< The unique key of the item submitted is already in use
 
   udE_Count //!< Internally used to verify return values
 };
@@ -108,6 +110,41 @@ enum udError
 //! @return A string representing the suppplied errorCode. This memory is owned by udSDK and does not need to be returned or freed and should not be modified
 //!
 UDSDKDLL_API const char* udError_GetErrorString(enum udError errorCode);
+
+
+//!
+//! These are the various progress types for the progress handler
+//!
+enum udProgressType
+{
+  udProgressType_Pending, //!< The expected progress hasn't started yet
+  udProgressType_Complete, //!< Always updated at the end of the event (doesn't not indicate success), this can be set during the process by sections (e.g. downloading might complete before the next step)
+
+  udProgressType_Parsing, //!< Something is being parsed/decoded, etc. (at/of in Bytes)
+  udProgressType_Reading, //!< Something is being read in. (at/of are items)
+  udProgressType_Writing, //!< Something is being written to. (at/of are items)
+
+  udProgressType_Downloading, //!< A download is occuring. (at/of in Bytes)
+  udProgressType_Uploading, //!< An upload is occuring. (at/of in Bytes)
+
+  udProgressType_Count //!< The total number of progress types in this enum
+};
+
+//!
+//! Callback invoked on when the internal status is updated to provide user feedback
+//!
+//! Examples:
+//!   Download Initialised: `udProgressCallback("downloading", 0, -1, NULL)`
+//!   When downloading a file: `udProgressCallback("downloading", 123, 456, "bytes")`
+//!   While parsing: `udProgressCallback("parsing", 6, 62, "items")`
+//!  
+//! @param pProgressUserData The pointer provided in the parent function, purely passthrough.
+//! @param progressType The type of event that occurred
+//! @param atPosition The index or count of the item being processed
+//! @param ofCount The total count of the items being processes in the current state, 0 if unknown and -1 if this was a once off state change (e.g. moving to downloading)
+//! @return A udError to indicate if the process should continue, most functions will cancel on anything except udE_Success but it's function specific
+//! 
+typedef enum udError(udProgressCallback)(void *pProgressUserData, enum udProgressType progressType, int64_t atPosition, int64_t ofCount);
 
 #ifdef __cplusplus
 }

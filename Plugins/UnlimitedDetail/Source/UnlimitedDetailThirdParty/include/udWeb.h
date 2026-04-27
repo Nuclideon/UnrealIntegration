@@ -37,6 +37,8 @@ extern "C" {
     uint64_t rangeEnd; //!< The position of the last byte in the requested file to receive data from.
     const char *pAuthUsername; //!< The username to use when authenticating with the server.
     const char *pAuthPassword; //!< The password to use when authenticating with the server.
+    const char *pCookie; //!< A cookie to include in the header
+    struct udContext *pContext; //!< If this is provided and pURL is on the same domain as the pContext server the API details will be passed through
   };
 
   //!
@@ -46,7 +48,7 @@ extern "C" {
   //! @param ppResponse This will be modified with a pointer to internal udSDK memory with the contents of the request. You must call `udWeb_ReleaseResponse` to free this memory.
   //! @param pResponseLength If non-null, the pointer's memory will be set to the length of `ppResponse`.
   //! @param pHTTPResponseCode If non-null this will be set to the HTTP status code. See https ://www.ietf.org/assignments/http-status-codes/http-status-codes.xml for status codes.
-  //! @result A udError value based on the result of the HTTP request.
+  //! @return A udError value based on the result of the HTTP request.
   //! @note This function internally just calls `udWeb_RequestAdv` with the option members being zeroed, except for the method which is set to `udWM_GET`.
   //!
   UDSDKDLL_API enum udError udWeb_Request(const char *pURL, const char **ppResponse, uint64_t *pResponseLength, int *pHTTPResponseCode);
@@ -59,7 +61,7 @@ extern "C" {
   //! @param ppResponse This will be modified with a pointer to internal udSDK memory with the contents of the request. You must call `udWeb_ReleaseResponse` to free this memory.
   //! @param pResponseLength If non-null, the pointer's memory will be set to the length of `ppResponse`.
   //! @param pHTTPResponseCode If non-null this will be set to the HTTP status code. See https ://www.ietf.org/assignments/http-status-codes/http-status-codes.xml for status codes.
-  //! @result A udError value based on the result of the HTTP request.
+  //! @return A udError value based on the result of the HTTP request.
   //!
   UDSDKDLL_API enum udError udWeb_RequestAdv(const char *pURL, struct udWebOptions options, const char **ppResponse, uint64_t *pResponseLength, int *pHTTPResponseCode);
 
@@ -67,7 +69,7 @@ extern "C" {
   //! Frees memory of a prior call to `udWeb_Request` or `udWeb_RequestAdv`.
   //!
   //! @param ppResponse A pointer to a pointer containing the response from a prior call to `udWeb_Request` or `udWeb_RequestAdv`.
-  //! @result  A udError value based on the result of releasing the HTTP response.
+  //! @return A udError value based on the result of releasing the HTTP response.
   //!
   UDSDKDLL_API enum udError udWeb_ReleaseResponse(const char **ppResponse);
 

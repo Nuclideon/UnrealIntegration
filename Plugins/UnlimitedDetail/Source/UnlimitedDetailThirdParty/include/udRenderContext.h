@@ -2,7 +2,7 @@
 #define udRenderContext_h__
 
 //! @file udRenderContext.h
-//! The **udRenderContext** object provides an interface to render Euclideon Unlimited Detail models.
+//! The **udRenderContext** object provides an interface to render Nuclideon Unlimited Detail models.
 //! It provides the ability to render by colour, intensity or classification; additionally allowing the user to query a specific pixel for information about the pointcloud data.
 
 #include "udDLLExport.h"
@@ -103,6 +103,7 @@ struct udRenderInstance
 
   const struct udGeometry *pFilter; //!< Filter to override for this model, this one will be used instead of the global one applied in udRenderSettings
 
+  uint32_t modelID; //!< (for GPU only) This value is considered as sceneID/objectID as well.
   uint32_t (*pVoxelShader)(struct udPointCloud *pPointCloud, const struct udVoxelID *pVoxelID, const void *pVoxelUserData); //!< When the renderer goes to select a colour, it calls this function instead
   void *pVoxelUserData; //!< If pVoxelShader is set, this parameter is passed to that function
 

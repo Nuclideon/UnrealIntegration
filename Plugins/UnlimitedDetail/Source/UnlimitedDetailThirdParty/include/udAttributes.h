@@ -12,15 +12,25 @@
 extern "C" {
 #endif
 
+  enum
+  {
+    udAttributeSet_MaxDescriptors = 64 //!< Hard limit on the number of attributes in a .uds pointcloud
+  };
+
   //!
   //! A list of standard UDS attributes
   //!
   enum udStdAttribute
   {
+    // Note that all attributes must be are ordered from largest to smallest for alignment within point buffers
     udSA_GPSTime, //!< udATI_float64 
     udSA_PrimitiveID, //!< udATI_uint32  
+    udSA_PrimitiveU, //!< udATI_float32 Texture U coordinate passed to custom conversions involving primitives
+    udSA_PrimitiveV, //!< udATI_float32 Texture V coordinate passed to custom conversions involving primitives
+    udSA_PrimitiveMaterialID, //!< udATI_uint32  ID of texture as returned by udConvert_GetPrimitiveMaterialID, passed to custom conversions involving primitives
     udSA_ARGB, //!< udATI_color32 
     udSA_Normal, //!< udATI_normal32
+    udSA_Altitude, //!< udATI_float32
     udSA_Red, //!< Legacy 16bit Red channel
     udSA_Green, //!< Legacy 16bit Green channel
     udSA_Blue, //!< Legacy 16bit Blue channel
@@ -28,6 +38,7 @@ extern "C" {
     udSA_NIR, //!< udATI_uint16  
     udSA_ScanAngle, //!< udATI_uint16  
     udSA_PointSourceID, //!< udATI_uint16  
+    udSA_SourceFileID, //!< udATI_uint16  
     udSA_Classification, //!< udATI_uint8   
     udSA_ReturnNumber, //!< udATI_uint8   
     udSA_NumberOfReturns, //!< udATI_uint8   
@@ -35,7 +46,7 @@ extern "C" {
     udSA_ScannerChannel, //!< udATI_uint8   
     udSA_ScanDirection, //!< udATI_uint8   
     udSA_EdgeOfFlightLine, //!< udATI_uint8   
-    udSA_ScanAngleRank, //!< udATI_uint8   
+    udSA_ScanAngleRank, //!< udATI_int8   
     udSA_LasUserData, //!< Specific LAS User data field (udATI_uint8)
 
     udSA_Count, //!< Count helper value to iterate this enum
@@ -52,8 +63,12 @@ extern "C" {
     udSAC_None = (0),
     udSAC_GPSTime = (1 << udSA_GPSTime),
     udSAC_PrimitiveID = (1 << udSA_PrimitiveID),
+    udSAC_PrimitiveU = (1 << udSA_PrimitiveU), // used when passing UV corrdinates 
+    udSAC_PrimitiveV = (1 << udSA_PrimitiveV),
+    udSAC_PrimitiveMaterialID = (1 << udSA_PrimitiveMaterialID),
     udSAC_ARGB = (1 << udSA_ARGB),
     udSAC_Normal = (1 << udSA_Normal),
+    udSAC_Altitude = (1 << udSA_Altitude),
     udSAC_Red = (1 << udSA_Red),
     udSAC_Green = (1 << udSA_Green),
     udSAC_Blue = (1 << udSA_Blue),
@@ -61,6 +76,7 @@ extern "C" {
     udSAC_NIR = (1 << udSA_NIR),
     udSAC_ScanAngle = (1 << udSA_ScanAngle),
     udSAC_PointSourceID = (1 << udSA_PointSourceID),
+    udSAC_SourceFileID = (1 << udSA_SourceFileID),
     udSAC_Classification = (1 << udSA_Classification),
     udSAC_ReturnNumber = (1 << udSA_ReturnNumber),
     udSAC_NumberOfReturns = (1 << udSA_NumberOfReturns),
@@ -73,8 +89,8 @@ extern "C" {
 
     udSAC_AllAttributes = (1 << udSA_AllAttributes) - 1,
     udSAC_64BitAttributes = udSAC_GPSTime,
-    udSAC_32BitAttributes = udSAC_PrimitiveID + udSAC_ARGB + udSAC_Normal,
-    udSAC_16BitAttributes = udSAC_Intensity + udSAC_NIR + udSAC_ScanAngle + udSAC_PointSourceID,
+    udSAC_32BitAttributes = udSAC_PrimitiveID + udSAC_ARGB + udSAC_Normal + udSAC_PrimitiveMaterialID + udSAC_PrimitiveU + udSAC_PrimitiveV + udSAC_Altitude,
+    udSAC_16BitAttributes = udSAC_Intensity + udSAC_NIR + udSAC_ScanAngle + udSAC_PointSourceID + udSAC_SourceFileID,
   };
 
   //!
@@ -85,6 +101,7 @@ extern "C" {
     udABT_Mean, //!< This blend type merges nearby voxels together and finds the mean value for the attribute on those nodes
     udABT_FirstChild, //!< This blend type selects the value from one of the nodes and uses that
     udABT_NoLOD, //!< This blend type has no information in LODs and is only stored in the highest detail level
+    udABT_OR, //!< This blend type does a bitwise OR of all of the children, and is only useful for flags
 
     udABT_Count //!< Total number of blend types. Used internally but can be used as an iterator max when checking attribute blend modes.
   };
@@ -131,6 +148,8 @@ extern "C" {
     char name[64]; //!< Name of the attibute
     char prefix[16]; //!< Value prefix for display
     char suffix[16]; //!< Value suffix for display
+    uint16_t histogramSize; //!< Size of histogram data, currently only 0 and 64 are valid values
+    uint8_t rangeMaskSize; //!< Size in bytes of range mask data to keep for this attribute, currently only 1, 2, 4, and 8 are valid values
   };
 
   //!
@@ -143,6 +162,37 @@ extern "C" {
     uint32_t count; //!< How many udAttributeDescriptor objects are used in pDescriptors
     uint32_t allocated; //!< How many udAttributeDescriptor objects are allocated to be used in pDescriptors
     struct udAttributeDescriptor *pDescriptors; //!< this contains the actual information on the attributes
+  };
+
+  //! @struct udAttributeSetCopyRuns
+  //! A structure of "instruction" chunks to copy from one attribute set to another
+  //! For example if source has color, intensity, custom1 and custom2, and the destination
+  //! had color, classification and custom2, udAttributeSet_GetTansforms would provide an
+  //! array of chunks to define the memcpy/memset's required for color and custom2
+  //! In this example incomplete will be set to true to indicate at least one element is not
+  //! written to in the copy instructions, so the entire structure should be initialised to
+  //! zero beforehand (much simpler and potentially faster than trying to memset individual elements)
+  struct udAttributeSetCopyRuns
+  {
+    uint32_t len; //!< the number of copy instructions stored
+    uint32_t incomplete; //!< If true, not all the attributes are present so memset target to zero beforehand
+    struct
+    {
+      uint32_t sourceOffset; //!< offset of the attribute in the source as returned by the udAttributeSet_GetOffset* family of functions 
+      uint32_t targetOffset; //!< offset of the attribute in the destination as returned by the udAttributeSet_GetOffset* family of functions 
+      uint32_t size; //!< size of the attribute in bytes
+    } chunks[(uint32_t)udSA_Count + (uint32_t)udAttributeSet_MaxDescriptors];  //!< array of copy instructions
+
+#ifdef __cplusplus
+    //!
+    //! Helper to inform that entire buffer can be safely memcopied
+    //!
+    //! @return a boolean indicating if the whole buffer can be safely copied (e.g. using a memcpy)
+    bool IsFullyCopyable() const
+    {
+      return len == 1 && !incomplete && chunks[0].sourceOffset == chunks[0].targetOffset;
+    }
+#endif //__cplusplus
   };
 
   //!
@@ -175,6 +225,16 @@ extern "C" {
   UDSDKDLL_API enum udError udAttributeSet_GetOffsetOfStandardAttribute(const struct udAttributeSet *pAttributeSet, enum udStdAttribute attribute, uint32_t *pOffset);
 
   //!
+  //! Gets the offset for an indexed attribute so that further querying of that attribute can be performed
+  //!
+  //! @param pAttributeSet The attribute set to get the offset for
+  //! @param attributeIndex The index of the attribute
+  //! @param pOffset This pointer will be written to with the value of the offset if it is found
+  //! @return A udError value based on the result of writing the offset to pOffset
+  //!
+  UDSDKDLL_API enum udError udAttributeSet_GetOffsetOfIndexedAttribute(const struct udAttributeSet *pAttributeSet, uint32_t attributeIndex, uint32_t *pOffset);
+
+  //!
   //! Gets the offset for a named attribute so that further querying of that attribute can be performed
   //!
   //! @param pAttributeSet The attribute set to get the offset for
@@ -183,6 +243,17 @@ extern "C" {
   //! @return A udError value based on the result of writing the offset to pOffset
   //!
   UDSDKDLL_API enum udError udAttributeSet_GetOffsetOfNamedAttribute(const struct udAttributeSet *pAttributeSet, const char *pName, uint32_t *pOffset);
+
+  //!
+  //! Gets the offset and/or index for a named attribute so that further querying of that attribute can be performed
+  //!
+  //! @param pAttributeSet The attribute set to get the offset for
+  //! @param pName The name of the attribute
+  //! @param pOffset Optional pointer to be written to with the value of the offset if it is found (may be null)
+  //! @param pIndex Optional pointer to be written with the index of the attribute if found (may be null)
+  //! @return A udError value based on the result of writing the offset to pOffset
+  //!
+  UDSDKDLL_API enum udError udAttributeSet_GetOffsetAndIndexOfNamedAttribute(const struct udAttributeSet *pAttributeSet, const char *pName, uint32_t *pOffset, uint32_t *pIndex);
 
   //!
   //! Gets the descriptor of a named attribute stored in a udAttributeSet
@@ -202,6 +273,33 @@ extern "C" {
   //! @return A udError value based on the result of writing the descriptor to pDescriptor
   //!
   UDSDKDLL_API enum udError udAttribute_GetDescriptorOfStandardAttribute(const enum udStdAttribute attribute, struct udAttributeDescriptor *pDescriptor);
+
+  //!
+  //! Encodes a normal vector as a uint32 suitable for storage in the udNormal attribute field
+  //!
+  //! @param pEncoded The pointer to store the result of encoding the normal in
+  //! @param xyz An array representing the 3 components of the vector to be encoded. The vector must be normalised
+  //! @return A udError value based on the result of encoding the normal and writing it to pEncoded
+  //!
+  UDSDKDLL_API enum udError udAttributeSet_EncodeNormal(uint32_t *pEncoded, const float xyz[3]);
+
+  //!
+  //! Decodes a normal vector as a uint32 to an array of 3 floats
+  //!
+  //! @param encoded The encoded normal to be decoded
+  //! @param xyz An array representing the 3 components of the decoded vector to be written to
+  //! @return A udError value indicating the success of the operation
+  //! 
+  UDSDKDLL_API enum udError udAttributeSet_DecodeNormal(uint32_t encoded, float xyz[3]);
+
+  //!
+  //! Generate a set of instructions mapping between byte arrays representing two attribute sets
+  //!
+  //! @param pCopy a pointer to the udAttributeSetCopyRuns objects to be oppulated
+  //! @param xyz An array representing the 3 components of the decoded vector to be written to
+  //! @return A udError value indicating the success of the operation
+  //! 
+  UDSDKDLL_API enum udError udAttributeSet_GenerateAttributeSetCopyRuns(struct udAttributeSetCopyRuns *pCopy, const struct udAttributeSet *pTarget, const struct udAttributeSet *pSource);
 
 #ifdef __cplusplus
 }

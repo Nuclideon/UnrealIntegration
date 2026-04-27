@@ -31,8 +31,11 @@ struct udPointBufferF64
 {
   double *pPositions; //!< Flat array of XYZ positions in the format XYZXYZXYZXYZXYZXYZXYZ...
   uint8_t *pAttributes; //!< Byte array of attribute data ordered as specified in `attributes`
+  uint8_t *pRangeMaskData; //!< Array of interleaved rangemask blobs, each of rangeMaskStride size, with the array being pointCount/pointsAllocated length/reservation
+  uint64_t rangeMaskPresent[4]; //!< Masks for 64,32,16 and 8 bit rangemask presence respectively. Rangemasks are ordered by size, anf sub-ordered by attribute index.
   struct udAttributeSet attributes; //!< Information on the attributes that are available in this point buffer
   uint32_t attributeStride; //!< Total number of bytes between the start of the attibutes of one point and the first byte of the next attribute
+  uint32_t rangeMaskStride; //!< Rounded/aligned stride between rangeMasks in pRangeMaskData
   uint32_t pointCount; //!< How many points are currently contained in this buffer
   uint32_t pointsAllocated; //!< Total number of points that can fit in this udPointBufferF64
   uint32_t _reserved; //!< Reserved for internal use
@@ -60,8 +63,11 @@ struct udPointBufferI64
 {
   int64_t *pPositions;  //!< Flat array of XYZ positions in the format XYZXYZXYZXYZXYZXYZXYZ...
   uint8_t *pAttributes; //!< Byte array of attribute data ordered as specified in `attributes`
+  uint8_t *pRangeMaskData; //!< Array of interleaved rangemask blobs, each of rangeMaskStride size, with the array being pointCount/pointsAllocated length/reservation
+  uint64_t rangeMaskPresent[4]; //!< Masks for 64,32,16 and 8 bit rangemask presence respectively. Rangemasks are ordered by size, anf sub-ordered by attribute index.
   struct udAttributeSet attributes; //!< Information on the attributes that are available in this point buffer
   uint32_t attributeStride; //!< Total number of bytes between the start of the attibutes of one point and the first byte of the next attribute
+  uint32_t rangeMaskStride; //!< Rounded/aligned stride between rangeMasks in pRangeMaskData
   uint32_t pointCount; //!< How many points are currently contained in this buffer
   uint32_t pointsAllocated; //!< Total number of points that can fit in this udPointBufferF64
   uint32_t _reserved; //!< Reserved for internal use
@@ -89,8 +95,11 @@ struct udPointBufferU64
 {
   uint64_t *pPositions;  //!< Flat array of XYZ positions in the format XYZXYZXYZXYZXYZXYZXYZ...
   uint8_t *pAttributes; //!< Byte array of attribute data ordered as specified in `attributes`
+  uint8_t *pRangeMaskData; //!< Array of interleaved rangemask blobs, each of rangeMaskStride size, with the array being pointCount/pointsAllocated length/reservation
+  uint64_t rangeMaskPresent[4]; //!< Masks for 64,32,16 and 8 bit rangemask presence respectively. Rangemasks are ordered by size, anf sub-ordered by attribute index.
   struct udAttributeSet attributes; //!< Information on the attributes that are available in this point buffer
   uint32_t attributeStride; //!< Total number of bytes between the start of the attibutes of one point and the first byte of the next attribute
+  uint32_t rangeMaskStride; //!< Rounded/aligned stride between rangeMasks in pRangeMaskData
   uint32_t pointCount; //!< How many points are currently contained in this buffer
   uint32_t pointsAllocated; //!< Total number of points that can fit in this udPointBufferF64
   uint32_t _reserved; //!< Reserved for internal use

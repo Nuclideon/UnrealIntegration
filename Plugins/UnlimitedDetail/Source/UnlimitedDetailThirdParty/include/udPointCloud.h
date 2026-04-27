@@ -2,7 +2,7 @@
 #define udPointCloud_h__
 
 //! @file udPointCloud.h
-//! The **udPointCloud** object provides an interface to load a Euclideon Unlimited Detail model.
+//! The **udPointCloud** object provides an interface to load a Nuclideon Unlimited Detail model.
 //! Once instantiated, the **udPointCloud** can be queried for metadata information, and rendered with the udRenderContext functions.
 //! Future releases will allow users to also query the pointcloud data itself, providing the ability to export to LAS or render sub-sections of the pointcloud.
 
@@ -180,6 +180,64 @@ UDSDKDLL_API enum udError udPointCloud_GetStreamingStatus(struct udPointCloud *p
 //! @note udAttributeSet_Destroy must be called on pAttributeSet 
 //!
 UDSDKDLL_API enum udError udPointCloud_GetSourceAttributes(struct udPointCloud *pModel, struct udAttributeSet *pAttributeSet);
+
+//!
+//! Set the Anti Octree of the model
+//!
+//! @param pModel The point cloud to get assigned a new Anti Octree.
+//! @param pAntiOctreeModel The point cloud to be used as anti octree
+//! @return A udError value indicating success setting the anti octree to this PointCloud 
+//!
+UDSDKDLL_API enum udError udPointCloud_SetAntiOctree(struct udPointCloud *pModel, struct udPointCloud *pAntiOctreeModel);
+
+//!
+//! Get a histogram of an attribute for this point cloud (if calculated at convert time)
+//!
+//! @param pPointCloud Pointer to the point cloud to get histogram from
+//! @param attributeIndex Index of the attribute within the pointcloud attribute to of the pointcloud
+//! @param pHistogram An array of 64 uint64s to be populated with the bins of the histogram
+//! @param pHistogramSize Pointer to be populated with the number of 64 bit bins in the histogram 
+//! @param pMin Pointer to be populated with the minimum value in the histogram (may be NULL)
+//! @param pIncrement Pointer to be populated with the width of the histogram buckets (may be NULL)
+//! @param pHistogramMax Pointer to be populated with the maximum count recorded in the histogram (may be NULL)
+//! @param pHistogramTotal Pointer to be populated with the total points represented in the histogram (may be NULL)
+//! 
+//! @return A udError value indicating success of getting the histogram for this point cloud
+//!
+UDSDKDLL_API enum udError udPointCloud_GetHistogramData(struct udPointCloud *pModel, uint32_t attributeIndex, uint64_t *pHistogram, uint32_t *pHistogramSize, double *pMin, double *pIncrement, uint64_t *pHistogramMax, uint64_t *pHistogramTotal);
+
+//!
+//! Get the min and max values of an attribute in a point cloud as doubles
+//!
+//! @param pModel The pointer to the point cloud to get the min and max from
+//! @param index The index of the attribute to retrieve the min and max of
+//! @param pMin A pointer to store the resultant min in
+//! @param pMax A pointer to store the resultant max in
+//! @return A udError value indicating success of getting the attribute min and max values, udE_NotFound if the attribute is not present
+//!
+UDSDKDLL_API enum udError udPointCloud_GetAttrMinMaxF64(struct udPointCloud *pModel, uint32_t index, double *pMin, double *pMax);
+
+//!
+//! Get the min and max values of an attribute in a point cloud as 64 bit signed integers
+//!
+//! @param pModel The pointer to the point cloud to get the min and max from
+//! @param index The index of the attribute to retrieve the min and max of
+//! @param pMin A pointer to store the resultant min in
+//! @param pMax A pointer to store the resultant max in
+//! @return A udError value indicating success of getting the attribute min and max values, udE_NotFound if the attribute is not present
+//!
+UDSDKDLL_API enum udError udPointCloud_GetAttrMinMaxI64(struct udPointCloud *pModel, uint32_t index, int64_t *pMin, int64_t *pMax);
+
+//!
+//! Get the min and max values of an attribute in a point cloud as 64 bit unsigned integers
+//!
+//! @param pModel The pointer to the point cloud to get the min and max from
+//! @param index The index of the attribute to retrieve the min and max of
+//! @param pMin A pointer to store the resultant min in
+//! @param pMax A pointer to store the resultant max in
+//! @return A udError value indicating success of getting the attribute min and max values, udE_NotFound if the attribute is not present
+//!
+UDSDKDLL_API enum udError udPointCloud_GetAttrMinMaxU64(struct udPointCloud *pModel, uint32_t index, uint64_t *pMin, uint64_t *pMax);
 
 #ifdef __cplusplus
 }

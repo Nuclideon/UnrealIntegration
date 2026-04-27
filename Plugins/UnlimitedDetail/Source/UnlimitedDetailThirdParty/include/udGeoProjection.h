@@ -14,8 +14,8 @@ extern "C" {
 //! Loads a set of zones from a JSON file where each member is defined as "AUTHORITY:SRID" (eg. "EPSG:32756")
 //!
 //! @param pJSONStr A pointer to a JSON string that contains the new zones to load
-//! @param pLoaded [optional] 
-//! @param pFailed The name of the application using udSDK.
+//! @param pLoaded [optional] If non-null, will be set to the number of zones successfully loaded
+//! @param pFailed [optional] If non-null, will be set to the number of zones that failed to load
 //! @note udGeoProjection_UnloadZones needs to be called to free loaded zones. This function can be called multiple times to load more zones
 //!
 UDSDKDLL_API enum udError udGeoProjection_LoadZonesFromJSON(const char *pJSONStr, int *pLoaded, int *pFailed);

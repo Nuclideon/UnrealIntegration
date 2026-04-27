@@ -11,15 +11,28 @@ extern "C" {
 #endif
 
 //!
-//! @struct udStreamerInfo
+//! @struct udStreamerStatus
 //! Stores returned information from a streamer update
 //!
-struct udStreamerInfo
+struct udStreamerStatus
 {
   uint32_t active; //!< Not 0 if streamer has blocked to load, or models are awaiting destruction
-  int64_t memoryInUse; //!< Total (approximate) memory in use by the streamer (in bytes)
-  int modelsActive; //!< Number of models actively requesting data
-  int starvedTimeMsSinceLastUpdate; //!< Number of milliseconds spent waiting with no work to do since the previous update (ideally should be 0)
+  int highestBlockPriority; //!< Highest priority of any block waiting to be loaded (reduces to zero as streaming completes)
+  enum udError modelErrors; //!< Any errors from streaming
+  int avgBytesPerSecond; //!< Data Throughput
+  int blocksInQueue; //!< How many blocks (sections of a pointcloud) are waiting to be loaded
+  int blocksInFlight; //!< How many blocks are actively being loaded
+  int freeableBlocksLocked; //!< How many blocks are loaded that aren't being used right now
+
+  int64_t blockMemoryInUse; //!< Total (approximate) memory in use by the streamer (in bytes)
+  int64_t positionMemoryInUse; //!< Amount of memory used by positional data for all blocks loaded
+  int64_t freeableMemory; //!< Amount of memory used by blocks on the freeable list
+  int blocksReadSinceLastUpdate; //!< Number of blocks whose read was started
+  int blocksLoadedSinceLastUpdate; //!< Number of blocks that actually finished and unpacked
+  int blocksActive; //!< Number of blocks potentially loadable before next update
+  int modelsActive; //!< Number of models actively requesting blocks
+  int totalBlocksLoaded; //!< How many blocks are loaded
+  int starvedTimeMsSinceLastUpdate; //!< Number of milliseconds spent with waiting for more work that came on the very on the next update
 };
 
 //!
@@ -42,7 +55,7 @@ UDSDKDLL_API enum udError udStreamer_Deinit();
 //! @param pStatus A structure to write streaming information to; Use NULL if the information isn't required
 //! @note The application should call this immediately after the last render for the frame
 //!
-UDSDKDLL_API enum udError udStreamer_Update(struct udStreamerInfo *pStatus);
+UDSDKDLL_API enum udError udStreamer_Update(struct udStreamerStatus *pStatus);
 
 #ifdef __cplusplus
 }

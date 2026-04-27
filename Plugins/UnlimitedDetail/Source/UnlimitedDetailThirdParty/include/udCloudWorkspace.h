@@ -23,8 +23,6 @@ struct udCloudWorkspace
   char ID[64]; //!< The workspace id from udCloud
   char *pName; //!< The name of the workspace
   uint64_t permissions; //!< The permissions of this workspace
-  struct udCloudStorageVolume volume; //!< Hot And Archives volume stored in udCloud
-  uint32_t isPAYG; //!< A flag for PAYG workspace
   uint32_t isPendingDelete; //!< A flag to know if the workspace will be deleted shortly
 };
 
@@ -51,7 +49,7 @@ UDSDKDLL_API enum udError udCloudWorkspace_ReleaseWorkspaceList(struct udCloudWo
 //! Get a list of available Projects owned by a specific Workspace in udCloud
 //!
 //! @param pContext The pointer to the udContext of the session to use.
-//! @param pCloudWorkspace The pointer of the udCouldWorkspace.
+//! @param pCloudWorkspace The pointer of the udCloudWorkspace.
 //! @param ppCloudProjects A list of Projects returned.
 //! @param pCount The number of projects in ppCloudProject.
 //! @return A udError value based on the result of the query on udCloud.

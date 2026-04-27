@@ -2,12 +2,12 @@
 #define udGeometry_h__
 
 //! @file udGeometry.h
-//! The **udGeometry** object provides an interface to filter Euclideon Unlimited Detail models using geometric filters.
+//! The **udGeometry** object provides an interface to filter Nuclideon Unlimited Detail models using geometric filters.
 
 #include <stdint.h>
 #include "udDLLExport.h"
 #include "udError.h"
-#include "udMathTypes.h"
+#include "udMath.h"
 #include "udAttributes.h"
 
 #ifdef __cplusplus
@@ -36,39 +36,38 @@ extern "C" {
   };
 
   //!
-  //! @typedef udGeometryDouble2
-  //! A 2D geometric vector with double precision
+  //! The currently supported geometry comparator types (used in attribute filtering)
   //! 
-  typedef struct udMathDouble2 udGeometryDouble2;
+  enum udGeometryComparator
+  {
+    udGC_EQ,        //!< Equal, param is tolerance (0 = none)
+    udGC_NE,        //!< Not equal, param is tolerance (0 = none)
+    udGC_GT,        //!< Greater than, param is range limit (0 = none)
+    udGC_GE,        //!< Greater than or Equal, param is range limit (0 = none)
+    udGC_LT,        //!< Less rhan, param is range limit (0 = none)
+    udGC_LE,        //!< Less than or equal, param is range limit (0 = none)
+    udGC_AND_ANY,   //!< Bitwise AND, true if value AND comparands != 0, param is unused (should be zero)
+    udGC_AND_ALL,   //!< Bitwise AND, true if value AND comparands == comparand, param is unused (should be zero)
+  };
 
-  //!
-  //! @typedef udGeometryDouble3
-  //! A 3D geometric vector with double precision
-  //! 
-  typedef struct udMathDouble3 udGeometryDouble3;
 
-  //!
-  //! @typedef udGeometryDouble4
-  //! A 4D geometric vector, or 3D vector for homogeneous coordinates with double precision
-  //! 
-  typedef struct udMathDouble4 udGeometryDouble4;
-
-  //!
-  //! @typedef udGeometryDouble4x4
-  //! A 4x4 geometric matrix with double precision
-  //! 
-  typedef struct udMathDouble4x4 udGeometryDouble4x4;
-
+  enum udGeometryVoxelNodeFlags
+  {
+    udGVNF_None = 0,       //!< Default no flags present
+    udGVNF_RenderLeaf = 1, //!< The voxel is either a leaf or being rendered as a leaf
+  };
+    
   //!
   //! @struct udGeometryVoxelNode
   //! The geometric representation of a Node in a Unlimited Detail Model.
   //! 
   struct udGeometryVoxelNode
   {
-    udGeometryDouble3 minPos; //!< The Bottom, Left, Front corner of the voxel (closest to the origin)
+    udDouble3 minPos; //!< The Bottom, Left, Front corner of the voxel (closest to the origin)
     double childSize; //!< The half size of the voxel (which is the same size as this voxels children)
-    struct udNode *pNode; //!< Optional pointer to the node for testing attributes
-    uint8_t childDepth; //!< Optional depth down the tree value for additional context (0=unpecified, 1=root etc)
+    const struct udNode *pNode; //!< Optional pointer to the node for testing attributes
+    uint8_t childDepth; //!< Optional depth down the tree value for additional context (0=unspecified, 1=root etc)
+    uint8_t flags; //!< Optional flags, set from enum udGeometryVoxelNodeFlags
   };
 
   //!
@@ -77,7 +76,7 @@ extern "C" {
   //! 
   struct udGeometryCircleXY
   {
-    udGeometryDouble2 centre; //!< The centre of the circle
+    udDouble2 centre; //!< The centre of the circle
     double radius; //!< The radius of the circle
   };
 
@@ -87,8 +86,8 @@ extern "C" {
   //! 
   struct udGeometryRectangleXY
   {
-    udGeometryDouble2 minPoint; //!< The lowest point of the rectangle
-    udGeometryDouble2 maxPoint; //!< The highest point of the rectangle
+    udDouble2 minPoint; //!< The lowest point of the rectangle
+    udDouble2 maxPoint; //!< The highest point of the rectangle
   };
 
   //!
@@ -97,9 +96,10 @@ extern "C" {
   //! 
   struct udGeometryPolygonXYZ
   {
-    uint32_t pointCount; //!< THe number of points defining the polygon
-    udGeometryDouble3 *pointsList; //!< The list of points defining the polygon
-    udGeometryDouble4 rotationQuat; //!< The rotation of the polygon
+    uint32_t pointCount; //!< The number of points defining the polygon
+    udDouble3 *pointsList; //!< The list of points defining the polygon
+    udDouble3 polygonNormal; //!< The polygon normal
+    udDoubleQuat rotationQuat; //!< The rotation of the polygon compare to Z axis
   };
 
   //!
@@ -109,15 +109,15 @@ extern "C" {
   struct udGeometryPolygonPerspective
   {
     uint32_t pointCount; //!< The number of points defining the polygon
-    udGeometryDouble3 *pointsList; //!< The list of points defining the polygon
-    udGeometryDouble4 rotationQuat; //!< The rotation of the polygon
-    udGeometryDouble4x4 worldToScreen; //!< The matrix to project from World space to Screen space
-    udGeometryDouble4x4 projectionMatrix; //!< The matrix to project the points of the polygon
-    udGeometryDouble4x4 cameraMatrix; //!< The camera matrix
-    udGeometryDouble3 normRight; //!< The normal on the right of the plane
-    udGeometryDouble3 normLeft; //!< The normal on the left of the plane
-    udGeometryDouble3 normTop; //!< The normal on the top of the plane
-    udGeometryDouble3 normBottom; //!< The normal on the bottom of the plane
+    udDouble3 *pointsList; //!< The list of points defining the polygon
+    udDouble4 rotationQuat; //!< The rotation of the polygon
+    udDouble4x4 worldToScreen; //!< The matrix to project from World space to Screen space
+    udDouble4x4 projectionMatrix; //!< The matrix to project the points of the polygon
+    udDouble4x4 cameraMatrix; //!< The camera matrix
+    udDouble3 normRight; //!< The normal on the right of the plane
+    udDouble3 normLeft; //!< The normal on the left of the plane
+    udDouble3 normTop; //!< The normal on the top of the plane
+    udDouble3 normBottom; //!< The normal on the bottom of the plane
     double nearPlane; //!< the near plane distance
     double farPlane; //!< The far plane distance
   };
@@ -128,12 +128,12 @@ extern "C" {
   //! 
   struct udGeometryCapsule
   {
-    udGeometryDouble3 point1; //!< One end of the line
-    udGeometryDouble3 point2; //!< The other end of the line
+    udDouble3 point1; //!< One end of the line
+    udDouble3 point2; //!< The other end of the line
     double radius; //!< The radius around the line
 
     // Derived values
-    udGeometryDouble3 axisVector; //!< The vector of the line
+    udDouble3 axisVector; //!< The vector of the line
     double length; //!< The length of the line
   };
 
@@ -143,7 +143,7 @@ extern "C" {
   //! 
   struct udGeometrySphere
   {
-    udGeometryDouble3 center; //!< The center of the sphere
+    udDouble3 center; //!< The center of the sphere
     double radius; //!< The radius of the sphere
   };
 
@@ -153,7 +153,7 @@ extern "C" {
   //! 
   struct udGeometryHalfSpace
   {
-    udGeometryDouble4 plane; //!< The parameters to define the plane (normal XYZ and offset from origin)
+    udDouble4 plane; //!< The parameters to define the plane (normal XYZ and offset from origin)
   };
 
   //!
@@ -162,8 +162,8 @@ extern "C" {
   //!
   struct udGeometryAABB
   {
-    udGeometryDouble3 center; //!< The point at the center of the AABB
-    udGeometryDouble3 extents; //!< The half space size of the AABB
+    udDouble3 center; //!< The point at the center of the AABB
+    udDouble3 extents; //!< The half space size of the AABB
   };
 
   //!
@@ -172,9 +172,9 @@ extern "C" {
   //! 
   struct udGeometryOBB
   {
-    udGeometryDouble3 center; //!< The point at the center of the AABB
-    udGeometryDouble3 extents; //!< The half space size of the AABB
-    udGeometryDouble4x4 rotationMatrix; //!< The transform that represents the rotation
+    udDouble3 center; //!< The point at the center of the AABB
+    udDouble3 extents; //!< The half space size of the AABB
+    udDouble4x4 rotationMatrix; //!< The transform that represents the rotation
   };
 
   //!
@@ -217,12 +217,23 @@ extern "C" {
   //! 
   struct udGeometryAttribute
   {
-    enum udStdAttribute attr;
+    enum udStdAttribute attr;           //!< For custom attributes this should be udSA_Count, otherwise the appropriate enum value
+    struct udAttributeDescriptor desc;  //!< Attribute descriptor
     union
     {
-      int64_t iValue;
-      double fValue;
-    } data;
+      uint64_t u;   //!< Any unsigned integer typed values
+      int64_t i;    //!< Any signed integer typed values
+      float f32;    //!< Any float typed values
+      double f64;   //!< Any double-precision typed values
+    } value;        //!< The value for the comparison, with the expected type derived from the type in the descriptor
+    union
+    {
+      uint64_t u;   //!< Any unsigned integer typed values
+      int64_t i;    //!< Any signed integer typed values
+      float f32;    //!< Any float typed values
+      double f64;   //!< Any double-precision typed values
+    } param;        //!< Optional comparitor-specific parameter, such as the tolerance when using the EQ operator. Default to zero.
+    enum udGeometryComparator comp; //!< The comparison operator
   };
 
   //!
@@ -244,7 +255,7 @@ extern "C" {
   typedef enum udGeometryTestResult udGeometryTestFunc(const struct udGeometry *pGeometry, const struct udGeometryVoxelNode *pVoxel);
 
   //! This sets up pFilterOut by doing the pMatrix transform on pFilterIn (which isn't modified)- pFilterOut needs to be deinited after this
-  typedef enum udError udGeometryTransform(const struct udGeometry *pFilterIn, struct udGeometry *pFilterOut, const udGeometryDouble4x4 *pMatrix);
+  typedef enum udError udGeometryTransform(const struct udGeometry *pFilterIn, struct udGeometry *pFilterOut, const udDouble4x4 *pMatrix);
 
   //! Optional function to return a crc of ADDITIONAL data outside the structure, such as pointers in a CSG/Inverse type etc.
   typedef uint32_t udGeometryCrc(const struct udGeometry *pGeometry);
@@ -293,10 +304,10 @@ extern "C" {
   //!
   //! Helper to initialise a 2D circle extended to infinity in Z (elevation)
   //! @param pGeometry The preallocated udGeometry to init
-  //! @param centre THe centre fo the Circle
+  //! @param centre The centre of the Circle
   //! @param radius The radius of the circle
   //!
-  UDSDKDLL_API enum udError udGeometry_InitCircleXY(struct udGeometry *pGeometry, const udGeometryDouble2 centre, double radius);
+  UDSDKDLL_API enum udError udGeometry_InitCircleXY(struct udGeometry *pGeometry, const udDouble2 centre, double radius);
 
   //!
   //! Helper to initialise a 2D rectangle extended to infinity in Z (elevation)
@@ -304,28 +315,28 @@ extern "C" {
   //! @param point1 The first point to define a rectangle
   //! @param point2 The second point to define a rectangle
   //!
-  UDSDKDLL_API enum udError udGeometry_InitRectangleXY(struct udGeometry *pGeometry, const udGeometryDouble2 point1, const udGeometryDouble2 point2);
+  UDSDKDLL_API enum udError udGeometry_InitRectangleXY(struct udGeometry *pGeometry, const udDouble2 point1, const udDouble2 point2);
 
   //!
   //! Helper to initialise a Polygon shape extened to infinity along a direction
   //! @param pGeometry The preallocated udGeometry to init
   //! @param pXYCoords the list of 2D positions defining the polygon
   //! @param count the number of points in pXYCoords list
-  //! @param rotationQuat The rotation quaternion between Up and the direction of the polygon
+  //! @param polygonNormal the normal vector to the polygon
   //!
-  UDSDKDLL_API enum udError udGeometry_InitPolygonXY(struct udGeometry *pGeometry, const udGeometryDouble3 *pXYCoords, uint32_t count, const udGeometryDouble4 rotationQuat);
+  UDSDKDLL_API enum udError udGeometry_InitPolygonXY(struct udGeometry *pGeometry, const udDouble3 *pXYCoords, uint32_t count, const udDouble3 polygonNomal);
 
   //!
   //! Helper to initialise a Polygon shape extended to infinity with a perspective projection
   //! @param pGeometry The preallocated udGeometry to init
   //! @param pXYCoords the list of 2D positions defining the polygon
   //! @param count the number of points in pXYCoords list
-  //! @param projectionMatrix The projection matrix of model to world
+  //! @param projectionMatrix The model to world projection matrix
   //! @param cameraMatrix The projection matrix of world to screen
   //! @param nearPlaneOffset The offset off the near plane to detect if voxel is visible by the camera
   //! @param farPlaneOffset The offset off the far plane to detect if voxel is visible by the camera
   //! 
-  UDSDKDLL_API enum udError udGeometry_InitPolygonPerspective(struct udGeometry *pGeometry, const udGeometryDouble2 *pXYCoords, uint32_t count, udGeometryDouble4x4 projectionMatrix, udGeometryDouble4x4 cameraMatrix, double nearPlaneOffset, double farPlaneOffset);
+  UDSDKDLL_API enum udError udGeometry_InitPolygonPerspective(struct udGeometry *pGeometry, const udDouble2 *pXYCoords, uint32_t count, udDouble4x4 projectionMatrix, udDouble4x4 cameraMatrix, double nearPlaneOffset, double farPlaneOffset);
 
   //!
   //! Helper to initialise a CSG shape
@@ -342,7 +353,7 @@ extern "C" {
   //! @param point The first point to define the space
   //! @param normal The normal vector of the defined space
   //!
-  UDSDKDLL_API enum udError udGeometry_InitHalfSpace(struct udGeometry *pGeometry, const udGeometryDouble3 point, const udGeometryDouble3 normal);
+  UDSDKDLL_API enum udError udGeometry_InitHalfSpace(struct udGeometry *pGeometry, const udDouble3 point, const udDouble3 normal);
 
   //!
   //! Helper to initialise a Capsule
@@ -351,7 +362,7 @@ extern "C" {
   //! @param point2 Second point to define a capsule
   //! @param radius Radius of the capsule
   //!
-  UDSDKDLL_API enum udError udGeometry_InitCapsule(struct udGeometry *pGeometry, const udGeometryDouble3 point1, const udGeometryDouble3 point2, double radius);
+  UDSDKDLL_API enum udError udGeometry_InitCapsule(struct udGeometry *pGeometry, const udDouble3 point1, const udDouble3 point2, double radius);
 
   //!
   //! Helper to initialise a Sphere
@@ -359,7 +370,7 @@ extern "C" {
   //! @param center The center of the Sphere
   //! @param radius The radius of the sphere
   //!
-  UDSDKDLL_API enum udError udGeometry_InitSphere(struct udGeometry *pGeometry, const udGeometryDouble3 center, double radius);
+  UDSDKDLL_API enum udError udGeometry_InitSphere(struct udGeometry *pGeometry, const udDouble3 center, double radius);
 
   //!
   //! Helper to initialise an Axis Aligned Box using the min and max point
@@ -367,7 +378,7 @@ extern "C" {
   //! @param point1 First point to define a box starting at this position
   //! @param point2 Last point to define a box ending at this position
   //!
-  UDSDKDLL_API enum udError udGeometry_InitAABBFromMinMax(struct udGeometry *pGeometry, const udGeometryDouble3 point1, const udGeometryDouble3 point2);
+  UDSDKDLL_API enum udError udGeometry_InitAABBFromMinMax(struct udGeometry *pGeometry, const udDouble3 point1, const udDouble3 point2);
 
   //!
   //! Helper to initialise an Axis Aligned Box using center and extents
@@ -375,7 +386,7 @@ extern "C" {
   //! @param centre The centre of the Axis Aligned Box
   //! @param extents The dimension of the Axis Aligned Box
   //!
-  UDSDKDLL_API enum udError udGeometry_InitAABBFromCentreExtents(struct udGeometry *pGeometry, const udGeometryDouble3 centre, const udGeometryDouble3 extents);
+  UDSDKDLL_API enum udError udGeometry_InitAABBFromCentreExtents(struct udGeometry *pGeometry, const udDouble3 centre, const udDouble3 extents);
 
   //!
   //! Helper to initialise an arbitrarily aligned three dimensional box, centered at centerPoint, rotated about the center
@@ -384,18 +395,34 @@ extern "C" {
   //! @param centerPoint The centre of the box
   //! @param extents The distances from the center to the sides (half the size of the dimensions of the box)
   //! @param rotations The rotations of the box in radians about x,y,z
-  UDSDKDLL_API enum udError udGeometry_InitOBB(struct udGeometry *pGeometry, const udGeometryDouble3 centerPoint, const udGeometryDouble3 extents, const udGeometryDouble3 rotations);
+  UDSDKDLL_API enum udError udGeometry_InitOBB(struct udGeometry *pGeometry, const udDouble3 centerPoint, const udDouble3 extents, const udDouble3 rotations);
 
   //!
   //! Helper to initialise an attribute equality filter, testing the attribute for equality with integer based comparitors
   //!
   //! @param pGeometry The preallocated udGeometry to init
-  //! @param attr Attribute from standard attribute set
-  //! @param value Value to compare node's attribute with (integer version)
-  UDSDKDLL_API enum udError udGeometry_InitAttributeEqInt(struct udGeometry *pGeometry, enum udStdAttribute attr, int64_t value);
+  //! @param comp The type of comparison, for example udGC_EQ for equality comparison
+  //! @param value Value to compare node's attribute with
+  //! @param tolerance For udGC_EQ comparisons, values +/- the tolerance is considered a match (0.0 for exact match)
+  //! @param attr Attribute from standard attribute set (ignored if pDesc is non-null, use udSA_Count)
+  //! @param pDesc A descriptor for testing non-standard attributes (pass null if using a standard attribute)
+  UDSDKDLL_API enum udError udGeometry_InitAttributeInt64(struct udGeometry *pGeometry, enum udGeometryComparator comp, int64_t value, int64_t tolerance, enum udStdAttribute attr, const struct udAttributeDescriptor *pDesc);
+
+  //!
+  //! Helper to initialise an attribute equality filter, testing the attribute for equality with float based comparitors
+  //!
+  //! @param pGeometry The preallocated udGeometry to init
+  //! @param comp The type of comparison, for example udGC_EQ for equality comparison
+  //! @param value Value to compare node's attribute with
+  //! @param tolerance For udGC_EQ comparisons, values +/- the tolerance is considered a match (0.0 for exact match)
+  //! @param attr Attribute from standard attribute set (ignored if pDesc is non-null, use udSA_Count)
+  //! @param pDesc A descriptor for testing non-standard attributes (pass null if using a standard attribute)
+  UDSDKDLL_API enum udError udGeometry_InitAttributeFloat64(struct udGeometry *pGeometry, enum udGeometryComparator comp, double value, double tolerance, enum udStdAttribute attr, const struct udAttributeDescriptor *pDesc);
 
   //!
   //! This cleans up internal allocations
+  //!
+  //! @param pGeometry The geometry to deinitialise
   //!
   UDSDKDLL_API void udGeometry_Deinit(struct udGeometry *pGeometry);
 
@@ -403,12 +430,21 @@ extern "C" {
   //! Return a crc of the geometry (and sub-geometry in the case of CSG etc)
   //! 
   //! @param pGeometry Pointer to geometry
-  //! @return Crc {number} of the geometry, zero if pGeometry is passed as null
+  //! @return The CRC of the geometry, or zero if pGeometry is null
   //! 
   UDSDKDLL_API uint32_t udGeometry_CRC(const struct udGeometry *pGeometry);
 
   //!
-  //! Helper to create a pointer to an allocated udGeometry struct. This is a conveneince for wrapping libraries that do not need or have a concept of the underlying object
+  //! Return true if the geometry (or sub-geometry in the case of CSG etc) contains the given type
+  //! 
+  //! @param pGeometry Pointer to geometry
+  //! @param type The type of geometry to test for
+  //! @return udE_Success if the type is present in the geometry, otherwise udE_NotFound
+  //! 
+  UDSDKDLL_API enum udError udGeometry_HasType(const struct udGeometry *pGeometry, enum udGeometryType type);
+
+  //!
+  //! Helper to create a pointer to an allocated udGeometry struct. This is a convenience for wrapping libraries that do not need or have a concept of the underlying object
   //! It is NOT recommended to use this function in applications where creating a udGeometry struct directly is possible (either using an allocation or on stack)
   //! 
   //! @param ppGeometry Pointer to memory location with which to return the allocated struct
