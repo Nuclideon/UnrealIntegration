@@ -7,7 +7,7 @@ public class UnlimitedDetail : ModuleRules
 {
 	private string ThirdPartyPath
 	{
-		get { return Path.GetFullPath(Path.Combine(ModuleDirectory, "../UnlimitedDetailThirdParty/")); }
+		get { return Path.GetFullPath(Path.Combine(ModuleDirectory, "../udSDK/")); }
 	}
 	
 	public string ProjectDirectory
