@@ -6,17 +6,20 @@
 #include "Modules/ModuleManager.h"
 #include "Modules/ModuleInterface.h"
 #include "IAssetTools.h"
+#include "Framework/Application/IInputProcessor.h"
 
-class FToolBarBuilder;
-class FMenuBuilder;
-
-
+class FUDPickingInputPreProcessor;
 
 class FUdSDKEditorModule : public IModuleInterface
 {
 public:
-
-	/** IModuleInterface implementation */
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
+
+private:
+	bool Tick(float DeltaTime);
+	void HandleEditorPick();
+
+	TSharedPtr<FUDPickingInputPreProcessor> InputPreProcessor;
+	FTSTicker::FDelegateHandle TickHandle;
 };

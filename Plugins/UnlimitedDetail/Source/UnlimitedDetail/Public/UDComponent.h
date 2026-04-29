@@ -24,6 +24,9 @@ public:
 	UFUNCTION(CallInEditor, BlueprintCallable, Category = "UnlimitedDetail")
 	void RefreshPointCloud();
 
+	UFUNCTION(CallInEditor, BlueprintCallable, Category = "UnlimitedDetail")
+	void ResetScale();
+
 private:
 	void LoadPointCloud();
 	void UnloadPointCloud();

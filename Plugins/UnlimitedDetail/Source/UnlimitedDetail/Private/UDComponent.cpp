@@ -71,7 +71,7 @@ public:
 		if (!IsForceHidden())
 		{
 			check(instance == -1);
-			instance = MySubsystem->QueueInstance(myRoot->PointCloudHandle, GetLocalToWorld(), &GetScene());
+			instance = MySubsystem->QueueInstance(myRoot->PointCloudHandle, GetLocalToWorld(), &GetScene(), myRoot);
 		}
 		else
 		{
@@ -90,7 +90,7 @@ public:
 			return;
 
 		if (instance == -1)
-			instance = MySubsystem->QueueInstance(myRoot->PointCloudHandle, GetLocalToWorld(), &GetScene());
+			instance = MySubsystem->QueueInstance(myRoot->PointCloudHandle, GetLocalToWorld(), &GetScene(), myRoot);
 		else
 			MySubsystem->UpdateInstance(instance, GetLocalToWorld());
 	}
@@ -132,6 +132,21 @@ void UUDComponent::RefreshPointCloud()
 {
 	UnloadPointCloud();
 	LoadPointCloud();
+}
+
+void UUDComponent::ResetScale()
+{
+	if (!PointCloudHandle || !PointCloudHandle->bIsLoaded)
+		return;
+
+	// storedMatrix is column-major: columns 0/1/2 are the X/Y/Z axes.
+	// The magnitude of each axis column gives the scale for that axis.
+	const double* M = PointCloudHandle->StoredMatrix;
+	const float Sx = 100.0 * (float)FMath::Sqrt(M[0]*M[0] + M[1]*M[1] + M[2]*M[2]);
+	const float Sy = 100.0 * (float)FMath::Sqrt(M[4]*M[4] + M[5]*M[5] + M[6]*M[6]);
+	const float Sz = 100.0 * (float)FMath::Sqrt(M[8]*M[8] + M[9]*M[9] + M[10]*M[10]);
+
+	SetRelativeScale3D(FVector(Sx, Sy, Sz));
 }
 
 void UUDComponent::LoadPointCloud()

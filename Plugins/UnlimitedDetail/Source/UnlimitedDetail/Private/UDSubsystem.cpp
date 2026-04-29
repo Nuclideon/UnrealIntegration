@@ -1,4 +1,5 @@
 #include "UDSubsystem.h"
+#include "UDComponent.h"
 #include "Runtime/RHI/Public/RHI.h"
 #include "ImageUtils.h"
 #include "Slate/SceneViewport.h"
@@ -218,6 +219,8 @@ FUDPointCloudHandle* UUDSubsystem::Load(FString URL)
 	Asset.Pivot.Y = header.pivot[1];
 	Asset.Pivot.Z = header.pivot[2];
 
+	FMemory::Memcpy(Asset.StoredMatrix, header.storedMatrix, sizeof(Asset.StoredMatrix));
+
 	Asset.bIsLoaded = true;
 	Asset.RefCount = 1;
 
@@ -291,7 +294,7 @@ bool UUDSubsystem::Find(FString URL)
 }
 
 
-int64_t UUDSubsystem::QueueInstance(FUDPointCloudHandle *PCI, const FMatrix &InMatrix, FSceneInterface *Scene)
+int64_t UUDSubsystem::QueueInstance(FUDPointCloudHandle *PCI, const FMatrix &InMatrix, FSceneInterface *Scene, UUDComponent* Component)
 {
 	if (!PCI || !PCI->bIsLoaded || !PCI->PointCloud)
 	{
@@ -303,6 +306,7 @@ int64_t UUDSubsystem::QueueInstance(FUDPointCloudHandle *PCI, const FMatrix &InM
 	FUDPointCloudInstanceHandle RenderInstance = {};
 	RenderInstance.id = (NextID++);
 	RenderInstance.Scene = Scene;
+	RenderInstance.Component = Component;
 
 	RenderInstance.RenderInstance.pPointCloud = PCI->PointCloud;
 	RenderInstance.RenderInstance.pVoxelShader = PCI->VoxelShaderFunc;
@@ -434,20 +438,32 @@ int UUDSubsystem::CaptureUDSImage(const FSceneView& View)
 
 		udRenderPicking picking = {};
 
+		// Set pick pixel from the view's cursor position (populated by editor viewport clients).
+		// CursorPos is viewport-local; subtract the view rect origin to get render-target space.
+		if (View.CursorPos.X >= 0 && View.CursorPos.Y >= 0)
+		{
+			int32 PickX = View.CursorPos.X - View.UnconstrainedViewRect.Min.X;
+			int32 PickY = View.CursorPos.Y - View.UnconstrainedViewRect.Min.Y;
+			picking.x = (unsigned int)FMath::Clamp(PickX, 0, nWidth - 1);
+			picking.y = (unsigned int)FMath::Clamp(PickY, 0, nHeight - 1);
+		}
+
 		udRenderSettings renderOptions;
 		memset(&renderOptions, 0, sizeof(udRenderSettings));
-		
+
 		renderOptions.pPick = &picking;
 		renderOptions.pFilter = nullptr;
 		renderOptions.pointMode = udRCPM_Rectangles;
-		
+
 		TArray<udRenderInstance> RenderInstances;
+		TArray<int64_t> RenderInstanceIds;
 
 		for (int i = 0; i < RenderInstanceHandles.Num(); ++i)
 		{
 			if (RenderInstanceHandles[i].Scene == View.Family->Scene)
 			{
 				RenderInstances.Add(RenderInstanceHandles[i].RenderInstance);
+				RenderInstanceIds.Add(RenderInstanceHandles[i].id);
 			}
 		}
 
@@ -458,10 +474,16 @@ int UUDSubsystem::CaptureUDSImage(const FSceneView& View)
 			return error;
 		}
 
-		// TODO - Add picking back in
-		if (picking.hit)
+		if (picking.hit && picking.modelIndex < (uint32_t)RenderInstanceIds.Num())
 		{
-		//	SetSelectedByModelIndex(picking.modelIndex, true);
+			LastPickResult.bHit = true;
+			LastPickResult.WorldPosition = FVector(picking.pointCenter[0], picking.pointCenter[1], picking.pointCenter[2]);
+			LastPickResult.CameraPosition = View.ViewLocation;
+			LastPickResult.InstanceId = RenderInstanceIds[picking.modelIndex];
+		}
+		else
+		{
+			LastPickResult = {};
 		}
 	}
 
@@ -509,6 +531,31 @@ int UUDSubsystem::CaptureUDSImage(const FSceneView& View)
 		}
 	);
 	return error;
+}
+
+FUDPickResult UUDSubsystem::GetLastPickResult() const
+{
+	FScopeLock Lock(&DataMutex);
+
+	FUDPickResult Result;
+	if (!LastPickResult.bHit)
+		return Result;
+
+	Result.bHit = true;
+	Result.WorldPosition = LastPickResult.WorldPosition;
+	Result.CameraPosition = LastPickResult.CameraPosition;
+
+	// Resolve instance ID → component (safe: we're on game thread, DataMutex held)
+	for (const FUDPointCloudInstanceHandle& Handle : RenderInstanceHandles)
+	{
+		if (Handle.id == LastPickResult.InstanceId)
+		{
+			Result.Component = Handle.Component;
+			break;
+		}
+	}
+
+	return Result;
 }
 
 int UUDSubsystem::RecreateUDView(int32 InWidth, int32 InHeight, float InFOV)

@@ -38,6 +38,7 @@ public class UnlimitedDetailEditor : ModuleRules
 				"Projects",
 				"InputCore",
 				"UnrealEd",
+				"LevelEditor",
 				"ToolMenus",
 				"CoreUObject",
 				"Engine",
@@ -49,9 +50,6 @@ public class UnlimitedDetailEditor : ModuleRules
 				"UnlimitedDetail",
 				"AssetTools",
 				"Settings",
-				//"PropertyEditor",
-				//"AssetRegistry"
-				// ... add private dependencies that you statically link with here ...	
 			}
 		);
 		

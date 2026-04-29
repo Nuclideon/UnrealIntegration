@@ -12,6 +12,7 @@
 #include "UDSubsystem.generated.h"
 
 class FUDSceneViewExtension;
+class UUDComponent;
 
 typedef uint32_t udVoxelShader(struct udPointCloud* pPointCloud, const struct udVoxelID* pVoxelID, const void* pVoxelUserData);
 
@@ -29,6 +30,7 @@ public:
 	udVoxelShader* VoxelShaderFunc;
 
 	FVector Pivot;
+	double StoredMatrix[16];
 
 	int RefCount;
 };
@@ -41,6 +43,25 @@ struct FUDPointCloudInstanceHandle
 	int64_t id;
 	const FSceneInterface* Scene;
 	udRenderInstance RenderInstance;
+	UUDComponent* Component = nullptr;
+};
+
+// Render-thread-written pick state; read safely on game thread via GetLastPickResult()
+struct FUDPickResultInternal
+{
+	bool bHit = false;
+	FVector WorldPosition = FVector::ZeroVector;
+	FVector CameraPosition = FVector::ZeroVector;
+	int64_t InstanceId = -1;
+};
+
+// Game-thread-safe pick result returned to callers
+struct FUDPickResult
+{
+	bool bHit = false;
+	FVector WorldPosition = FVector::ZeroVector;
+	FVector CameraPosition = FVector::ZeroVector;
+	TWeakObjectPtr<UUDComponent> Component;
 };
 
 UCLASS()
@@ -70,11 +91,14 @@ public:
 
 	bool IsValid() const { return HasSession() && GetColorTexture().IsValid() && GetDepthTexture().IsValid(); };
 
-	int64_t QueueInstance(FUDPointCloudHandle* PCI, const FMatrix& InMatrix, FSceneInterface* Scene);
+	int64_t QueueInstance(FUDPointCloudHandle* PCI, const FMatrix& InMatrix, FSceneInterface* Scene, UUDComponent* Component);
 	bool RemoveInstance(int64_t id);
 	bool UpdateInstance(int64_t id, const FMatrix &InMatrix);
 
 	int CaptureUDSImage(const FSceneView& View);
+
+	// Game-thread-safe: returns the pick result from the most recently completed render.
+	FUDPickResult GetLastPickResult() const;
 
 private:
 
@@ -103,7 +127,7 @@ private:
 
 	bool LoadRunning;
 	
-	FCriticalSection DataMutex;
+	mutable FCriticalSection DataMutex;
 
 	TArray<FUDPointCloudInstanceHandle> RenderInstanceHandles;
 	TMap<FString, FUDPointCloudHandle> AssetsMap;
@@ -112,6 +136,8 @@ private:
 	FUdSDKResourceBulkData<float> DepthBulkData;
 
 	FMatrix ProjectionMatrix;
+
+	FUDPickResultInternal LastPickResult;
 
 	TSharedPtr<FUDSceneViewExtension, ESPMode::ThreadSafe> ViewExtension;
 };
