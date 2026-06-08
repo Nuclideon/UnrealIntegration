@@ -20,3 +20,4 @@ Saved
 # Auto generated VS config file
 .vsconfig
 /*.ipch
+/Config/DefaultUnlimitedDetail.ini

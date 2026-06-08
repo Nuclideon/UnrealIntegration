@@ -1,145 +1,234 @@
-# Unlimited Detail for Unreal guide.
+# Unlimited Detail for Unreal Engine
 
-* PLEASE NOTE: This guide is still under construction *
+An Unreal Engine 5 plugin that streams and renders massive **Unlimited Detail (`.UDS`) point clouds** using Nuclideon's udSDK. Datasets can be loaded from [udCloud](https://udcloud.nuclideon.com/), a self-hosted server, or directly from disk.
 
-> Euclideon would like to thank community members [zengweicheng666](https://github.com/zengweicheng666) and [EuleeStar](https://github.com/EuleeStar) for their Unreal Engine 4 integration which is available on [GitHub](https://github.com/zengweicheng666/UdSDKProject). The Unreal Engine 5 plugin is built upon the foundation they built for UE4.
+![Unlimited Detail rendering inside Unreal](mdcontent/example_unreal_1.png)
 
+---
 
-# Table of Contents
+## Contents
 
-1. [Quick start summary](#quick-start-summary)
-1. [Indepth guide](#indepth-guide)
-1. [Additional Info](#bdditional-Info)
-1. [Blueprint API](#blueprint-API)
-1. [Blueprint examples](#blueprint-examples)
+- [Features](#features)
+- [Requirements](#requirements)
+- [Quick start](#quick-start)
+- [Installation](#installation)
+- [Configuring your udCloud API key](#configuring-your-udcloud-api-key)
+- [Adding a point cloud to a scene](#adding-a-point-cloud-to-a-scene)
+- [Blueprint API](#blueprint-api)
+- [Sample assets](#sample-assets)
+- [Building from source](#building-from-source)
+- [Known limitations](#known-limitations)
+- [Support](#support)
+- [Credits](#credits)
+- [License](#license)
 
-# Quick start summary
+---
 
-1. Ensure you have a valid udCloud API key. A valid key can be acquired for free from:
-    1. https://udcloud.com/
-1.	Ensure you have Unreal 5.1+ installed: 
-    1.	https://docs.unrealengine.com/5.1/en-US/installing-unreal-engine/ 
-1.	Ensure you have downloaded and installed the Unlimited Detail Unreal 5 plugin:
-    1.	https://my.github.url.to.the.release.of.the.plugin.com 
-    1.	https://docs.unrealengine.com/5.0/en-US/working-with-plugins-in-unreal-engine/  
-1.	Ensure your API key is entered into the plugins Project Settings, and that the Server field reads `https://udcloud.euclideon.com`: 
-    1. ![image](./mdcontent/projectsettings_APIKey.png "Project Settings")
-1.	Restart Unreal (UDS will not start rendering until your API key is logged in, restarting will force that).
-1.	Add the UD component to either a scene actor or an existing class:
-    1. ![image](./mdcontent/component_add.png "Add component")
-    1. ![image](./mdcontent/component_search.png "Component name")
-1.	Assign a valid UDS URL to the component:
-    1. ![image](./mdcontent/url_empty.png "Empty URL")
-    1. ![image](./mdcontent/url_valid.png "Example URL")
-1.	A test asset can be accessed with the following URL: `https://models.euclideon.com/Japan/0_1_0.uds`
-1.	Set the component scale to something large and immediately obvious:
-    1. ![image](./mdcontent/scale_large.png "Large scale")
-1.	Drag the actor into the Scene to begin rendering UDS!
-    1. ![image](./mdcontent/example_unreal_1.png "UDS in Unreal")
+## Features
 
-# Indepth guide 
+- Stream `.UDS` point clouds from udCloud, a self-hosted udSDK server, or local files
+- `UUDComponent` — a `UPrimitiveComponent` you can drop on any Actor or Blueprint
+- Composite scene view extension that blends point cloud color and depth with the rest of the Unreal scene
+- Project Settings panel for server URL and API key
+- Built against udSDK 2.6
 
-## udCloud API Key
-In order to use the Unlimited Detail Unreal plugin, you require a udCloud API key.
+## Requirements
 
-1. Navigate to https://udcloud.com/
-1. Click the sing in/sign up button in the top right:
-    - ![image](./mdcontent/udcloud_Welcome.png "udCloud welcome screen")
-1. Clicking the Sign In / Sign up button yields the following window:
-    - ![image](./mdcontent/udcloud_login.png "udCloud sign in")
-1. Create an account with any of the listed authentication methods.
-1. After reading and accepting the EULA, Login. You will be greeted with the following window: 
-    - ![image](./mdcontent/udcloud_loggedin.png "udCloud sign in successful")
-1. Click your display name in the top right, to expand the following drop down:
-    - ![image](./mdcontent/udcloud_display_name_clicked.png "udCloud display name")
-1. Click "API Keys" to load the following page: 
-    - ![image](./mdcontent/udcloud_apikeys.png "udCloud api keys")
-1. Click on the top right button: 'Create API Key'
-    ![image](./mdcontent/udcloud_create_apikey.png "udCloud create api key")
-1. Enter a display name for the key, and (optionally) specify the number of days this key will be valid for.
-1. Click **Create an API key**. It will be listed on the page like so: 
-    - ![image](./mdcontent/udcloud_apikey_list.png "udCloud api key list")
-1. Under the “Options” column, click the **“...”** button on far right.
-    - ![image](./mdcontent/udcloud_copy_apikey.png "udCloud copy api key")
-1. Click **Copy API Key** to Clipboard. Once copied, you will see the following confirmation:
-    - ![image](./mdcontent/apikey_confirmation.png "udCloud api key copy confirmation")
+| | |
+|---|---|
+| Unreal Engine | **5.5 or newer** (uses renderer internal headers that moved in 5.5) |
+| Platforms | Windows 64-bit, Linux (Ubuntu 25.10 / GCC x64). macOS is in progress — see [Known limitations](#known-limitations). |
+| Account | A [udCloud](https://udcloud.nuclideon.com/) account for an API key, or access to a self-hosted udSDK server |
 
-For example, the following is the result of pasting the copied clipboard API key:
+---
 
-`eyJhcGlrZXlpZCI6IjAxMjM0NTY3OC0xMTExLTIyMjItMzMzMy00NDQ0NTU1NTY2NjYiLCJ1c2VyaWQiOiIwMTIzNDU2NzgtMTExMS0yMjIyLTMzMzMtNDQ0NDU1NTU2NjY2IiwidmVyc2lvbiI6IjEifQ==`
+## Quick start
 
-This API key can be used to authenticate your account to a variety of Euclideon software. Please ensure it is kept secure at all time, as anyone with access to this exact string can use any features your account is authorized to use. We recommend (if possible) ensuring your keys have a valid expiration date suited to your purposes.
+1. Get a udCloud API key from [udcloud.nuclideon.com](https://udcloud.nuclideon.com/) (see [Configuring your udCloud API key](#configuring-your-udcloud-api-key)).
+2. Drop this plugin into your project's `Plugins/` folder (see [Installation](#installation)).
+3. Open the project. In **Edit → Project Settings → Plugins → Unlimited Detail (udSDK)**, set:
+   - **Server Path** → `https://udcloud.nuclideon.com`
+   - **API Key** → paste your key
+4. Restart the editor.
+5. Add a **UD** component to any Actor, set its **URL** to a `.UDS` (e.g. `https://models.nuclideon.com/Japan/0_1_0.uds`), give the component a large scale, and drag the actor into your level.
 
-Keep this key handy, as it is what we will paste into the Unreal Plugin.
- 
-## Installing the Unreal Plugin
+That's it - Unlimited Detail will start streaming and rendering.
 
-The Unlimited Detail for Unreal plugin can be acquired either directly from the Unreal Marketplace or from our GitHub releases page, both approaches are equivalent and are detailed below:
+---
 
-## Install the Unreal Plugin – Github Releases
-[section unfinished]
-1. Navigate to https://my.github.url.to.the.release.of.the.plugin.com, and click Releases on the right:
-[screenshot needed]
-1. Download the latest release.
-1. Create a new Unreal project. Locate the folder, it should look something like this: 
-    - ![image](./mdcontent/unreal_project.png "UDS in Unreal")
-1. Create a new folder alongside your .uproject file, and name it `Plugins` :
-    - ![image](./mdcontent/unreal_plugins_folder.png "UDS in Unreal")
-1. Open `Plugins` and create a new folder called `UdSDK` [ need to tripple check to ensure the names match the final packaged plugin]
-    - ![image](./mdcontent/unreal_plugins_folder.png "UDS in Unreal")
-1. Copy the contents of the downloaded release from github into the `UdSDK` folder. The folder should resemble the following:
-    - ![image](./mdcontent/apikey_confirmation.png "UDS in Unreal")
+## Installation
 
-# Configuring the Plugin
-This procces only needs to be performed once per project, and additionally if your API keys are changed.
+### Option A — Pre-built release (recommended)
 
-1. Copy your API key from your UD Cloud account, it resemble the following: 
-`eyJhcGlrZXlpZCI6InRoZXJlaXNub3RoaW5ndXBteXNsZXZlcyIsInVzZXJpZCI6InRoZXJlaXNub3RoaW5ndXBteXNsZXZlcyIsInZlcnNpb24iOiIxMzM3In0=`
-1. Load your Unreal Project
-1. Initially, the plugin cannot connect to the Unlimited Detail server as it has not been configured, and displays the folllowing error: 
-    - ![image](./mdcontent/apikey_fail_Server.png "apikey fail")
-1. Click Ok.
-1. Once loaded, navigate into your Plugins Settings dialogue:
-    - ![image](./mdcontent/projectsettings_navigation.png "edit > project settings")
-1. Scroll down the very bottom until you see “Unlimited Detail” on the left:
-    - ![image](./mdcontent/projectsettings_APIKey.png "project settings")
-1. Ensure that the `Server Path` section reads `https://udcloud.euclideon.com`
-1. Paste your API key into the API Key Dialogue.
-1. From now on, Unreal will automatically authenticate with the Unlimited Detail server upon project or build start. 
-1. If your API key is ever invalidated or fails to authenticate for any reason, you will see the following error:
-    - ![image](./mdcontent/apikey_fail_invalid_key.png "api key failure")
-1. Restart Unreal!
+1. Download the latest release from the [Releases page](https://github.com/Nuclideon/UnrealIntegration/releases).
+2. In your Unreal project root (next to your `.uproject` file), create a `Plugins/` folder if it doesn't already exist.
+3. Extract the release archive into `Plugins/` so you end up with:
 
-Your Unlimited Detail plugin is now fully installed and configured and you can begin working with our large point cloud .UDS format.
+   ```
+   YourProject/
+   ├── YourProject.uproject
+   └── Plugins/
+       └── UnlimitedDetail/
+           ├── UnlimitedDetail.uplugin
+           ├── Source/
+           └── ...
+   ```
+4. Right-click your `.uproject` → **Generate Visual Studio project files** (Windows) and rebuild, or just open the project — Unreal will prompt to rebuild the plugin module.
 
-## Rendering Unlimited Detail Pointcloud within Unreal Engine
-Inorder to render Point Cloud assets within Unreal Engine, you must add an Unlimited Detail component to an actor you create. 
+### Option B — From source
 
-1. Right click in your content browser and create a new blueprint actor within your project:
-    - ![image](./mdcontent/example_create_blueprint.png "Create new blueprint")
-1. The blueprint can be any subtype, but for now chose actor:
-    - ![image](./mdcontent/example_actor.png "From actor")
-1. Name, and open your newly created asset. In the Top left, click Add Component, and search for "UD":
-    - ![image](./mdcontent/example_component_search.png "Add new UD component")
-1. Add the UD Component to your actor, your editor should resemble the following:
-    - ![image](./mdcontent/example_added.png "Component added")
-1. Ensuring the UD Component is still selected, give it a large and immediately obvious scale:
-    - ![image](./mdcontent/example_large_scale.png "Large scale")
-1. Locate the "URL" input dialogue under the details panel on the right:
-    - ![image](./mdcontent/example_locate_url.png "URL dialogue")
-1. Paste a valid URL into the dialogue. For example: `https://models.euclideon.com/Japan/0_0_0.uds`, and then zoom your view out to locate the Point Cloud
-    - ![image](./mdcontent/example_japan.png "Japan dataset")
-1. Save your blueprint, then create a new level and drag the actor into the scene:
-    - ![image](./mdcontent/example_unreal_1.png "Scene rendering 1")
-    - ![image](./mdcontent/example_unreal_2.png "Scene rendering 2")
+Clone this repository directly into your project's `Plugins/` folder:
 
-1. Unlimited Detail is now rendering within Unreal 5!
+```sh
+cd YourProject/Plugins
+git clone https://github.com/Nuclideon/UnrealIntegration UnlimitedDetail
+```
 
-# Additional Info
-Local URLs can be used to render .UDS files if you have access to them. Simply paste the absolute path of the asset into the URL dialogue as above, and the .UDS will begin rendering.
+Then regenerate project files and rebuild as above. See [Building from source](#building-from-source) for platform notes.
 
-# Blueprint API
-Currently the Blueprint API is under development and will be expanded in the near future.
+---
 
-## Blueprint examples:
->Space kept intentionally blank.
+## Configuring your udCloud API key
+
+The plugin requires a valid udSDK login before it can render. The easiest source is a [udCloud](https://udcloud.nuclideon.com/) account.
+
+1. Go to [udcloud.nuclideon.com](https://udcloud.nuclideon.com/) and sign in.
+
+   ![udCloud welcome](mdcontent/udcloud_Welcome.png)
+
+2. Click your display name (top right) → **API Keys**.
+
+   ![udCloud display name menu](mdcontent/udcloud_display_name_clicked.png)
+
+3. Click **Create API Key**, give it a display name, optionally set an expiry, and click **Create**.
+
+   ![Create API key](mdcontent/udcloud_create_apikey.png)
+
+4. In the API key list, open the **…** menu on the new key and choose **Copy API Key to Clipboard**.
+
+   ![Copy API key](mdcontent/udcloud_copy_apikey.png)
+
+A key looks like this (this is a fake example — yours will be different):
+
+```
+eyJhcGlrZXlpZCI6IjAxMjM0sdf343fsdf33vsTIyMjItMzMzMy00NDQ0NTU1NTY2NjYiLCJ1c2VyaWQiOiIwMTIzNDU2NASD4334DD3dAIyLTMzMzMtNDQ0NDU1NTU2NjY2IiwidmVyc2lvbiI6IjEifQ==
+```
+
+> **Treat the key like a password.** Anyone with the string can use anything your account can. Prefer keys with a short expiry where possible, and never commit them to source control.
+
+Then in Unreal:
+
+1. **Edit → Project Settings**, scroll to **Plugins → Unlimited Detail (udSDK)**.
+
+   ![Project Settings — Unlimited Detail](mdcontent/projectsettings_APIKey.png)
+
+2. Set **Server Path** to `https://udcloud.nuclideon.com` (or your self-hosted server URL).
+3. Paste your key into **API Key**.
+4. **Restart the editor.** The plugin authenticates at startup; it will not begin rendering until a successful login.
+
+If authentication fails, the editor shows one of:
+
+| Error | Cause |
+|---|---|
+| ![Server unreachable](mdcontent/apikey_fail_Server.png) | `Server Path` is empty or unreachable |
+| ![Invalid key](mdcontent/apikey_fail_invalid_key.png) | The API key is malformed, expired, or revoked |
+
+> Settings are stored in `Config/DefaultUnlimitedDetail.ini`. Because that file contains your API key, you should add it to your project's `.gitignore`.
+
+---
+
+## Adding a point cloud to a scene
+
+1. In the Content Browser, right-click → **Blueprint Class → Actor**, and give it a name.
+
+   ![Create a Blueprint actor](mdcontent/example_create_blueprint.png)
+
+2. Open the new Blueprint. In the components panel, click **+ Add** and search for **UD**.
+
+   ![Add UD component](mdcontent/example_component_search.png)
+
+3. With the **UD** component selected, set:
+   - **URL** — a `.UDS` URL (e.g. `https://models.nuclideon.com/Japan/0_1_0.uds`) or absolute path to a local `.UDS` file
+   - **Scale** — start large (e.g. 1000×1000×1000); most production datasets are huge in world units
+
+   ![Set URL and scale](mdcontent/example_large_scale.png)
+
+4. Compile and save the Blueprint, then drag it into a level. The point cloud begins streaming immediately.
+
+   ![Rendering in Unreal](mdcontent/example_unreal_2.png)
+
+You can also add the UD component directly to a C++ Actor class — it derives from `UPrimitiveComponent` and behaves like any other scene component.
+
+---
+
+## Blueprint API
+
+The `UUDComponent` exposes the following Blueprint-accessible members:
+
+| Member | Type | Description |
+|---|---|---|
+| `URL` | `String` (property) | Source of the `.UDS` to load. Setting this at runtime triggers a reload. |
+| `Get Url` | function | Returns the current URL. |
+| `Set Url` | function | Sets the URL and reloads the point cloud. |
+| `Refresh Point Cloud` | function | Unloads and reloads the current URL — useful after server-side changes. |
+| `Reset Scale` | function | Resets the component scale to a sensible default for the loaded dataset. |
+
+All functions live under the **UnlimitedDetail** category in the Blueprint editor.
+
+---
+
+## Sample assets
+
+A public demo dataset is hosted at:
+
+```
+https://models.nuclideon.com/Japan/0_1_0.uds
+```
+
+Drop that URL into any UD component to verify your setup is working without uploading a dataset of your own.
+
+You can also point the component at any absolute path to a `.UDS` file on local disk.
+
+---
+
+## Building from source
+
+### Windows (x64)
+
+Out of the box. The `udSDK.dll` is copied from `Plugins/UnlimitedDetail/Source/udSDK/lib/win_x64/` into your project's `Binaries/Win64/` folder during build.
+
+### Linux (Ubuntu 25.10 / GCC x64)
+
+Build with the standard Unreal Linux toolchain. The plugin links against `libudSDK.so` from `Plugins/UnlimitedDetail/Source/udSDK/lib/ubuntu25.10_GCC_x64/` and bundles it into `Binaries/Linux/`.
+
+### macOS
+
+Not yet supported. The udSDK distribution ships a `.dmg` rather than a usable `.dylib`; once a `.dylib` is extracted and the build script is filled in (see the macOS block in [`UnlimitedDetail.Build.cs`](Plugins/UnlimitedDetail/Source/UnlimitedDetail/UnlimitedDetail.Build.cs)), Mac builds will be enabled.
+
+---
+
+## Known limitations
+
+- **macOS is not yet supported.** Building for Mac throws a `BuildException` with extraction instructions. See [`UnlimitedDetail.Build.cs`](Plugins/UnlimitedDetail/Source/UnlimitedDetail/UnlimitedDetail.Build.cs).
+- **Object picking is a work in progress.** Hit-testing against Unlimited Detail geometry from Blueprint/C++ is partially implemented and not yet shipping-ready.
+- **The `UnlimitedDetail` runtime module's `PlatformAllowList` currently lists `Win64` only** in [`UnlimitedDetail.uplugin`](Plugins/UnlimitedDetail/UnlimitedDetail.uplugin). Add `"Linux"` (and `"Mac"` once available) to that list before packaging for those platforms.
+
+---
+
+## Support
+
+- File issues at [github.com/Nuclideon/UnrealIntegration/issues](https://github.com/Nuclideon/UnrealIntegration/issues).
+- Email [info@nuclideon.com](mailto:info@nuclideon.com) for licensing or commercial enquiries.
+
+---
+
+## Credits
+
+The original Unreal Engine 4 integration this plugin is built upon was created by community members [zengweicheng666](https://github.com/zengweicheng666) and [EuleeStar](https://github.com/EuleeStar) — see the [original UE4 repository](https://github.com/zengweicheng666/UdSDKProject). The Unreal Engine 5 plugin is maintained by [Nuclideon](https://nuclideon.com/).
+
+---
+
+## License
+
+- **Plugin source** — see the repository's `LICENSE` file.
+- **udSDK** — Nuclideon's terms apply; see [`udSDKLicense.md`](Plugins/UnlimitedDetail/Source/udSDK/udSDKLicense.md).
