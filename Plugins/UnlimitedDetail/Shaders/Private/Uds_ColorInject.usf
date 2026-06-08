@@ -1,0 +1,71 @@
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Private/ScreenPass.ush"
+
+// UD SDK colour buffer (captured at UnconstrainedViewRect / display resolution).
+Texture2D UdColorTexture;
+
+// UD SDK depth buffer (0 = near, 1 = far / no geometry), display resolution.
+Texture2D<float> UdDepthTexture;
+
+// Hardware scene depth buffer (reversed-Z: 1 = near, 0 = far), render resolution.
+// This is the post-DepthInject depth: UD geometry depth has already been written here
+// by Uds_DepthInject.usf, so UD-visible pixels have SceneDepth == (1.0 - UdDepth).
+Texture2D<float> SceneDepth;
+
+// Origin of the depth/colour viewport in render-target space (View.ViewRect.Min).
+// Non-zero in PIE and secondary editor viewports.
+float2 ViewRectMin;
+
+// Ratio: UdTexture size / SceneColor (render-resolution) size.
+// The UD textures are captured at UnconstrainedViewRect (display) resolution;
+// scene colour and depth are at ViewRect (render) resolution under TSR/TAA.
+// Mirrors ColorDepthExtentRatio from Uds_Composite.usf and the ratio in Uds_DepthInject.usf.
+float ColorDepthRatioX;
+float ColorDepthRatioY;
+
+// Composites UD geometry colour into scene colour before the post-process chain.
+// Called from PrePostProcessPass_RenderThread (after deferred lighting, before
+// AddPostProcessingPasses), so AfterDOF / AfterMotionBlur translucent objects
+// that haven't been flattened into scene colour yet will composite ON TOP of UD.
+//
+// Pixels where UD is not visible are discarded so the ELoad scene colour persists.
+// The hardware depth test is disabled — visibility is determined purely by comparing
+// the UD depth value against the scene depth (already injected by Uds_DepthInject).
+void MainPS(
+	noperspective float4 UVAndScreenPos : TEXCOORD0,
+	float4 SvPosition : SV_POSITION,
+	out float4 OutColor : SV_Target0)
+{
+	// Convert from scene-colour pixel space to UD texture pixel space.
+	// SvPosition is in [ViewRect.Min, ViewRect.Max]; subtract the viewport origin
+	// first so the local (0,0) of the UD texture aligns with the viewport origin.
+	float2 UdTexCoord = (SvPosition.xy - ViewRectMin) * float2(ColorDepthRatioX, ColorDepthRatioY);
+	int2   UdPixel    = int2(UdTexCoord);
+	int2   ScnPixel   = int2(SvPosition.xy);
+
+	float UdDepth = UdDepthTexture[UdPixel].x;
+
+	// 0.999+ = sky / no geometry (matches threshold in Uds_DepthInject.usf and
+	// Uds_Composite.usf). Discard to preserve existing scene colour.
+	if (UdDepth >= 0.99999f)
+		discard;
+
+	// Convert UD depth (0 = near) to UE reversed-Z (1 = near).
+	float UdDepth_UE  = 1.0f - UdDepth;
+	float SceneDepthV = SceneDepth[ScnPixel].x;
+
+	// Show UD colour only where UD is at least as close as the scene geometry.
+	// After depth injection the two values are equal at UD-only pixels, but the
+	// hardware depth buffer (D24_UNORM or D32_FLOAT) can quantise the stored value
+	// by a tiny amount relative to the float recomputed here.  Without a bias, that
+	// rounding causes UD-only pixels to be incorrectly discarded, producing a
+	// "self-peeling" / layered artefact on the point cloud surface.
+	//
+	// Bias of 1e-5 is ~170 D24 quantisation steps – invisible at scene scale but
+	// large enough to absorb any depth-buffer rounding error.  It does NOT affect
+	// occlusion by real opaque geometry (which sits at a clearly different depth).
+	if (UdDepth_UE < SceneDepthV - 1e-5f)
+		discard;
+
+	OutColor = float4(UdColorTexture[UdPixel].xyz, 1.0f);
+}

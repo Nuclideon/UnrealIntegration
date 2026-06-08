@@ -1,0 +1,43 @@
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Private/ScreenPass.ush"
+
+// The UD SDK depth buffer: 0 = near, 1 = far (no geometry).
+Texture2D<float> UdDepthTexture;
+
+// Origin of the depth-buffer viewport in render-target space (View.ViewRect.Min).
+// Non-zero in PIE and secondary editor viewports.
+float2 ViewRectMin;
+
+// Ratio: UdTexture size / depth-buffer size.
+// The UD texture is captured at UnconstrainedViewRect resolution (same as the colour
+// output), but the hardware depth buffer is at ViewRect resolution (which may be smaller
+// under TSR/TAA/render scaling).  Mirrors the ColorDepthExtentRatio correction in
+// Uds_Composite.usf, applied in the opposite direction.
+float ColorDepthRatioX;
+float ColorDepthRatioY;
+
+// Writes UD geometry depth into the hardware depth buffer so that the translucency pass
+// can correctly depth-test against UD.  Hardware depth test (CF_GreaterEqual, reversed-Z)
+// ensures we only overwrite where UD is in front of already-rendered opaque geometry.
+// Pixels with no UD geometry (UdDepth == 1.0) are discarded to leave scene depth intact.
+void MainPS(
+	noperspective float4 UVAndScreenPos : TEXCOORD0,
+	float4 SvPosition : SV_POSITION,
+	out float OutDepth : SV_Depth)
+{
+	// Convert from depth-buffer pixel space to UD texture pixel space.
+	// SvPosition is in [ViewRect.Min, ViewRect.Max]; subtract the origin first so the
+	// local (0,0) of the UD texture aligns with the local (0,0) of the viewport.
+	float2 UdTexCoord = (SvPosition.xy - ViewRectMin) * float2(ColorDepthRatioX, ColorDepthRatioY);
+	float UdDepth = UdDepthTexture[int2(UdTexCoord)].x;
+
+	// Values >= 0.999 are treated as "no geometry": the UD SDK produces sub-pixel
+	// fringe voxels at mesh boundaries whose depth is indistinguishable from the
+	// far plane but whose colour is sky/background. Clamping them out prevents the
+	// compositor from painting a white halo around the UD geometry silhouette.
+	if (UdDepth >= 0.99999f)
+		discard;
+
+	// UD SDK: 0 = near, 1 = far.  UE reversed-Z: 1 = near, 0 = far.
+	OutDepth = 1.0f - UdDepth;
+}

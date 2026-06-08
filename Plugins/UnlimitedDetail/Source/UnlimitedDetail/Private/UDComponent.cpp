@@ -59,6 +59,42 @@ public:
 		return Result;
 	}
 
+	// Returns the world matrix to send to the udSDK renderer.
+	//
+	// The UD SDK's storedMatrix converts from unit cube [0,1]³ to the model's
+	// native coordinate space.  The header's pivot is also in unit cube space and
+	// marks the model's natural reference / handle point.
+	//
+	// ResetScale() bakes the storedMatrix axis magnitudes into the UE component
+	// scale, so GetLocalToWorld() already has the right size.  What it does NOT
+	// account for is the pivot offset: with a raw GetLocalToWorld() the unit cube
+	// origin (0,0,0) aligns with the component gizmo, but the visual pivot of the
+	// geometry may be elsewhere in [0,1]³.
+	//
+	// Fix: pre-translate the unit cube by -pivot before applying LocalToWorld so
+	// that pivot → (0,0,0) → component world position.
+	FMatrix GetPivotCorrectedMatrix() const
+	{
+		FMatrix Result = GetLocalToWorld();
+		const FUDPointCloudHandle* Handle = myRoot ? myRoot->PointCloudHandle : nullptr;
+		if (Handle && Handle->bIsLoaded)
+		{
+			// Build a translation matrix for -pivot (unit cube space).
+			// UE FMatrix is row-major with translation in the last row (M[3]).
+			FMatrix PivotOffset = FMatrix::Identity;
+			PivotOffset.M[3][0] = -Handle->Pivot.X;
+			PivotOffset.M[3][1] = -Handle->Pivot.Y;
+			PivotOffset.M[3][2] = -Handle->Pivot.Z;
+
+			// In UE, (A * B) applies A first then B for row vectors, so:
+			//   P_world = P_unitcube * PivotOffset * LocalToWorld
+			//           = (P_unitcube - pivot) * LocalToWorld
+			// → when P_unitcube == pivot, P_world == component world position. ✓
+			Result = PivotOffset * Result;
+		}
+		return Result;
+	}
+
 	// In UE5.5+ OnLevelAddedToWorld_RenderThread / OnLevelRemovedFromWorld_RenderThread
 	// are no longer virtual. The base implementations call SetForceHidden, which
 	// triggers this virtual hook instead.
@@ -71,7 +107,7 @@ public:
 		if (!IsForceHidden())
 		{
 			check(instance == -1);
-			instance = MySubsystem->QueueInstance(myRoot->PointCloudHandle, GetLocalToWorld(), &GetScene(), myRoot);
+			instance = MySubsystem->QueueInstance(myRoot->PointCloudHandle, GetPivotCorrectedMatrix(), &GetScene(), myRoot);
 		}
 		else
 		{
@@ -90,9 +126,9 @@ public:
 			return;
 
 		if (instance == -1)
-			instance = MySubsystem->QueueInstance(myRoot->PointCloudHandle, GetLocalToWorld(), &GetScene(), myRoot);
+			instance = MySubsystem->QueueInstance(myRoot->PointCloudHandle, GetPivotCorrectedMatrix(), &GetScene(), myRoot);
 		else
-			MySubsystem->UpdateInstance(instance, GetLocalToWorld());
+			MySubsystem->UpdateInstance(instance, GetPivotCorrectedMatrix());
 	}
 
 	virtual uint32 GetMemoryFootprint(void) const override

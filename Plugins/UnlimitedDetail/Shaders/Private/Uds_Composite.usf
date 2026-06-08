@@ -50,7 +50,10 @@ void MainPS(noperspective float4 UVAndScreenPos : TEXCOORD0, float4 SvPosition :
 	
 	float fUdDepth_tmp = 1.0f - fUdDepth;
 
-	if(fUdDepth_tmp < fDepth || fUdDepth == 1.0f)
+	// Values >= 0.999 are treated as sky/background (no real UD geometry).
+	// This matches the discard threshold in Uds_DepthInject.usf and prevents the
+	// white silhouette outline caused by sub-pixel boundary voxels in the UD SDK.
+	if(fUdDepth_tmp < fDepth || fUdDepth >= 0.99999f)
 	{
 		OutColor = Color;
 	}
